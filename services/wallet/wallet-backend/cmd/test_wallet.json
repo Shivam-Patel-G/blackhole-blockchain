@@ -1,7 +1,7 @@
 {
-  "public_key": "0206becb5cc82189aab7203aefa723510c5603c714b9098da09f5f55c116e7eb72",
-  "address": "52e0b9a90c4c2c923acc79e63cb78d70d796af6a",
-  "mnemonic": "admit abstract outer case excess turn credit lunch pitch bronze travel shoot",
-  "encrypted_priv_key": "12b5da99cdb607b9cedf3e85e857dec88958c8ff3ceed6a91e38ffe8573d23dc163b1fb033a04bd715e371aaf17d6deefecfdda285889af68d0ceabe76e0ad29c049795693d3d24f33e6f5f0af094d1ee9362fe1c96ce63554be3db1",
+  "public_key": "03380238788bf4e503a7049a728955072a2308a6086e706cf202f70c0f2d280d14",
+  "address": "126a6698337c2b544e934426e4d5f5ddceef3785",
+  "mnemonic": "rapid coyote early state right alien latin slice again kitten heavy miss",
+  "encrypted_priv_key": "612f87a69cfee6da3bc3739965fc720a72cfe04612368d2f2a1eb0cadd8868182105bd2e325b70e4bd027105193d0bb32e4c8e4ee65d49d7853afa7e407667c9e9b766e622114b331c62c43aa14f460f0221f2fca82743eebd6d8c55",
   "last_sync_timestamp": "0001-01-01T00:00:00Z"
 }
