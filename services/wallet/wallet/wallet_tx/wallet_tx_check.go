@@ -18,6 +18,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"github.com/Shivam-Patel-G/blackhole-blockchain/relay-chain/chain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"golang.org/x/crypto/blake2b"
 )
@@ -82,7 +83,7 @@ func main() {
 	privKey, _ := btcec.PrivKeyFromBytes(privKeyBytes)
 
 	// Build a transaction to sign
-	tx := &transaction.Transaction{
+	tx := &chain.Transaction{
 		From:      wallet.PublicKey,
 		To:        "recipient_address_here",
 		Amount:    10.0,

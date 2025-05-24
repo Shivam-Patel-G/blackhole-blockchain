@@ -10,6 +10,7 @@ import (
 	// wallet_core "test/wallet"
 	"time"
 
+	"github.com/Shivam-Patel-G/blackhole-blockchain/relay-chain/chain"
 	wallet_core "github.com/Shivam-Patel-G/blackhole-blockchain/services/wallet/wallet/wallet"
 
 	"golang.org/x/crypto/blake2b"
@@ -32,7 +33,7 @@ type Transaction struct {
 }
 
 // SignTransaction signs a transaction using the sender's private key
-func SignTransaction(tx *Transaction, privKey *btcec.PrivateKey) ([]byte, error) {
+func SignTransaction(tx *chain.Transaction, privKey *btcec.PrivateKey) ([]byte, error) {
 	txCopy := *tx
 	txCopy.Signature = nil
 
@@ -48,7 +49,7 @@ func SignTransaction(tx *Transaction, privKey *btcec.PrivateKey) ([]byte, error)
 }
 
 // VerifyTransactionSignature verifies a transaction's signature
-func VerifyTransactionSignature(tx *Transaction, pubKey *btcec.PublicKey) (bool, error) {
+func VerifyTransactionSignature(tx *chain.Transaction, pubKey *btcec.PublicKey) (bool, error) {
 	if tx.Signature == nil {
 		return false, fmt.Errorf("no signature found")
 	}
@@ -88,10 +89,10 @@ func UseWalletAndSignTx(ctx context.Context, wallet *wallet_core.Wallet, passwor
 	}
 
 	// Build transaction
-	tx := &Transaction{
+	tx := &chain.Transaction{
 		From:      wallet.PublicKey,
 		To:        toAddress,
-		Amount:    amount,
+		Amount:    uint64(amount),
 		Timestamp: time.Now().Unix(),
 		Nonce:     uint64(time.Now().UnixNano()),
 	}
@@ -134,9 +135,9 @@ func IsValidAddress(ctx context.Context, address string) (bool, error) {
 }
 
 type BlockchainProvider interface {
-	GetBalance(address string) float64
-	GetNonce(address string) int
-	ProcessTransaction(tx Transaction) bool
+	GetBalance(address string) uint64
+	GetNonce(address string) uint64
+	ProcessTransaction(tx *chain.Transaction) error
 }
 
 // Example dummy implementation

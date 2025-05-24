@@ -92,9 +92,8 @@ func main() {
 
 	startCLI(ctx, bc, nodeID)
 }
-
 func miningLoop(ctx context.Context, bc *chain.Blockchain, validator *consensus.Validator, nodeID string) {
-	ticker := time.NewTicker(6 * time.Second)
+	ticker := time.NewTicker(3 * time.Second) // Optional minimal interval
 	defer ticker.Stop()
 
 	for {
@@ -102,6 +101,11 @@ func miningLoop(ctx context.Context, bc *chain.Blockchain, validator *consensus.
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			if len(bc.GetPendingTransactions()) == 0 {
+				fmt.Println("🚫 No pending transactions, skipping block mining")
+				continue // 🚫 No transaction, don't mine
+			}
+
 			validatorAddr := validator.SelectValidator()
 			if validatorAddr == "" {
 				log.Println("⚠️ No validator selected")
@@ -110,37 +114,14 @@ func miningLoop(ctx context.Context, bc *chain.Blockchain, validator *consensus.
 
 			block := bc.MineBlock(validatorAddr)
 			if validator.ValidateBlock(block, bc) {
-				// First broadcast the block
 				bc.BroadcastBlock(block)
-
-				// Wait longer to allow network propagation and processing by other nodes
-				// This reduces the chance of forks by giving other nodes time to receive
-				// and process our block before we add it to our own chain
-				fmt.Printf("⏳ Waiting for block propagation...\n")
 				time.Sleep(500 * time.Millisecond)
 
-				// Then try to add it to our chain
 				if bc.AddBlock(block) {
-					// Only update stake ledger and total supply if we successfully added the block
 					bc.StakeLedger.AddStake(block.Header.Validator, bc.BlockReward)
 					bc.TotalSupply += bc.BlockReward
-
-					log.Println("=====================================")
-					log.Printf("✅ Block %d added successfully", block.Header.Index)
-					log.Printf("🕒 Timestamp     : %s", block.Header.Timestamp.Format(time.RFC3339))
-					log.Printf("🔗 PreviousHash  : %s", block.Header.PreviousHash)
-					log.Printf("🔐 Current Hash  : %s", block.CalculateHash())
-					log.Println("=====================================")
-
-					// Log blockchain state after mining a block
-					if err := bc.LogBlockchainState(nodeID); err != nil {
-						log.Printf("❌ Failed to log blockchain state after mining: %v", err)
-					}
-				} else {
-					log.Printf("⚠️ Failed to add our own mined block %d to chain", block.Header.Index)
+					log.Printf("✅ Block %d added with %d transactions", block.Header.Index, len(block.Transactions))
 				}
-			} else {
-				log.Printf("❌ Failed to validate block %d", block.Header.Index)
 			}
 		}
 	}
@@ -161,7 +142,7 @@ func startCLI(ctx context.Context, bc *chain.Blockchain, nodeID string) {
 		if !scanner.Scan() {
 			return
 		}
- 
+
 		switch scanner.Text() {
 		case "status":
 			fmt.Println("📊 Blockchain Status")

@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	github.com/Shivam-Patel-G/blackhole-blockchain/core/relay-chain v0.0.0-20250524075417-5c786a2e73da
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
 	github.com/golang/snappy v0.0.4 // indirect

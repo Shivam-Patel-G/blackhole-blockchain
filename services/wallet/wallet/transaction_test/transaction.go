@@ -20,6 +20,7 @@ import (
 	// wallet_core "test/wallet"
 	wallet_core "github.com/Shivam-Patel-G/blackhole-blockchain/services/wallet/wallet/wallet"
 
+	"github.com/Shivam-Patel-G/blackhole-blockchain/relay-chain/chain"
 	"github.com/btcsuite/btcd/btcec/v2"
 )
 
@@ -98,20 +99,23 @@ func main() {
 	}
 
 	// Step 6: Interact with blockchain provider
-	blockchain := transaction.DummyBlockchain{} // Replace with your real provider
+	// port := 3000
+	blockchain, err := chain.NewBlockchain(3000)
+	// blockchain := transaction.DummyBlockchain{} // Replace with your real provider
+
 	balance := blockchain.GetBalance(selectedWallet.Address)
 	fmt.Printf("Your balance: %.4f\n", balance)
-	if amount > balance {
+	if amount > float64(balance) {
 		log.Fatalf("Insufficient balance")
 	}
 
 	nonce := blockchain.GetNonce(selectedWallet.Address)
 
 	// Step 7: Create and sign transaction
-	tx := &transaction.Transaction{
+	tx := &chain.Transaction{
 		From:      selectedWallet.Address,
 		To:        toAddr,
-		Amount:    amount,
+		Amount:    uint64(amount),
 		Nonce:     uint64(nonce),
 		Timestamp: time.Now().Unix(), // Set timestamp explicitly
 	}
@@ -148,8 +152,8 @@ func main() {
 	fmt.Println(string(txJSON))
 
 	// Step 8: Send transaction to blockchain network
-	success := blockchain.ProcessTransaction(*tx)
-	if !success {
+	success := blockchain.ProcessTransaction(tx)
+	if success != nil {
 		log.Fatalf("Transaction failed to process")
 	}
 

@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+type AccountState struct {
+	Balance uint64
+	Nonce   uint64
+}
+
 type Blockchain struct {
 	Blocks        []*Block
 	PendingTxs    []*Transaction
@@ -18,6 +23,10 @@ type Blockchain struct {
 	TotalSupply   uint64
 	BlockReward   uint64
 	pendingBlocks map[uint64]*Block
+	GlobalState   map[string]*AccountState
+}
+type RealBlockchain struct {
+	Blockchain *Blockchain // Pointer to the real blockchain
 }
 
 func NewBlockchain(p2pPort int) (*Blockchain, error) {
@@ -42,6 +51,7 @@ func NewBlockchain(p2pPort int) (*Blockchain, error) {
 		TotalSupply:   1000000000,
 		BlockReward:   10,
 		pendingBlocks: make(map[uint64]*Block),
+		GlobalState:   make(map[string]*AccountState), // ✅
 	}
 
 	return bc, nil
@@ -393,135 +403,6 @@ func (bc *Blockchain) Reorganize(newChain []*Block) bool {
 	return true
 }
 
-// func (bc *Blockchain) handleFork(newBlock *Block) bool {
-// 	fmt.Printf("🔄 Handling fork for block %d with hash %s\n", newBlock.Header.Index, newBlock.Hash)
-
-// 	// Special case: If the new block is at the same index as our latest block,
-// 	// we need to replace our latest block with the new one
-// 	if len(bc.Blocks) > 0 && newBlock.Header.Index == bc.Blocks[len(bc.Blocks)-1].Header.Index {
-// 		// Find the previous block (the common ancestor)
-// 		if len(bc.Blocks) < 2 {
-// 			fmt.Printf("❌ Cannot handle fork: not enough blocks in chain\n")
-// 			return false
-// 		}
-
-// 		prevBlock := bc.Blocks[len(bc.Blocks)-2]
-
-// 		// Verify that the new block links to the previous block
-// 		if newBlock.Header.PreviousHash != prevBlock.Hash {
-// 			fmt.Printf("❌ Fork block has invalid previous hash: %s, expected: %s\n",
-// 				newBlock.Header.PreviousHash, prevBlock.Hash)
-// 			return false
-// 		}
-
-// 		// Replace the last block with the new block
-// 		bc.Blocks = bc.Blocks[:len(bc.Blocks)-1] // Remove the last block
-// 		bc.Blocks = append(bc.Blocks, newBlock)  // Add the new block
-
-// 		fmt.Printf("✅ Replaced block at index %d with new block (hash: %s)\n",
-// 			newBlock.Header.Index, newBlock.Hash)
-// 		return true
-// 	}
-
-// 	// General case: Find the common ancestor
-// 	var commonAncestorIndex int = -1
-
-// 	// First try to find the block that matches the previous hash of the new block
-// 	for i, block := range bc.Blocks {
-// 		if block.Hash == newBlock.Header.PreviousHash {
-// 			commonAncestorIndex = i
-// 			break
-// 		}
-// 	}
-
-// 	// If we couldn't find a direct match, try to find a block at the previous index
-// 	if commonAncestorIndex == -1 && newBlock.Header.Index > 0 {
-// 		for i, block := range bc.Blocks {
-// 			if block.Header.Index == newBlock.Header.Index-1 {
-// 				// Found a block at the previous index, but it has a different hash
-// 				fmt.Printf("⚠️ Found block at index %d but hash doesn't match: %s vs %s\n",
-// 					block.Header.Index, block.Hash, newBlock.Header.PreviousHash)
-
-// 				// If this block has lower stake than the new block, we should reorganize
-// 				// starting from an earlier point
-// 				if block.Header.StakeSnapshot < newBlock.Header.StakeSnapshot {
-// 					// Find the earliest block with index less than the fork point
-// 					for j := i; j >= 0; j-- {
-// 						if bc.Blocks[j].Header.Index < block.Header.Index-1 {
-// 							commonAncestorIndex = j
-// 							break
-// 						}
-// 					}
-
-// 					if commonAncestorIndex == -1 {
-// 						// If we couldn't find an earlier block, use the genesis block
-// 						commonAncestorIndex = 0
-// 					}
-
-// 					fmt.Printf("🔄 Reorganizing chain from block %d due to higher stake\n",
-// 						bc.Blocks[commonAncestorIndex].Header.Index)
-
-// 					// Request missing blocks to build the new chain
-// 					bc.pendingBlocks[newBlock.Header.Index] = newBlock
-// 					bc.requestMissingBlocks(bc.Blocks[commonAncestorIndex].Header.Index+1, newBlock.Header.Index-1)
-// 					return false
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	if commonAncestorIndex == -1 {
-// 		fmt.Printf("❌ Cannot find common ancestor for fork block %d\n", newBlock.Header.Index)
-// 		return false
-// 	}
-
-// 	fmt.Printf("🔍 Found common ancestor at block %d (hash: %s)\n",
-// 		bc.Blocks[commonAncestorIndex].Header.Index, bc.Blocks[commonAncestorIndex].Hash)
-
-// 	// Create a new chain with blocks up to the common ancestor
-// 	newChain := make([]*Block, commonAncestorIndex+1)
-// 	copy(newChain, bc.Blocks[:commonAncestorIndex+1])
-
-// 	// Add the new block to the chain
-// 	newChain = append(newChain, newBlock)
-
-// 	// Validate the new chain
-// 	for i := 1; i < len(newChain); i++ {
-// 		if newChain[i].Header.PreviousHash != newChain[i-1].Hash {
-// 			fmt.Printf("❌ Invalid chain during fork resolution at block %d\n", newChain[i].Header.Index)
-// 			return false
-// 		}
-// 	}
-
-// 	// Calculate total stake for both chains
-// 	var oldChainStake uint64
-// 	var newChainStake uint64
-
-// 	for _, block := range bc.Blocks {
-// 		oldChainStake += block.Header.StakeSnapshot
-// 	}
-
-// 	for _, block := range newChain {
-// 		newChainStake += block.Header.StakeSnapshot
-// 	}
-
-// 	fmt.Printf("📊 Chain comparison - Old chain stake: %d, New chain stake: %d\n",
-// 		oldChainStake, newChainStake)
-
-// 	// Only reorganize if the new chain has higher stake or equal stake with lower hash
-// 	if newChainStake > oldChainStake ||
-// 		(newChainStake == oldChainStake && newBlock.Hash < bc.Blocks[len(bc.Blocks)-1].Hash) {
-// 		// Replace our chain with the new chain
-// 		bc.Blocks = newChain
-// 		bc.PendingTxs = make([]*Transaction, 0) // Clear pending transactions
-// 		fmt.Printf("✅ Chain reorganized to follow fork at block %d\n", newBlock.Header.Index)
-// 		return true
-// 	} else {
-// 		fmt.Printf("⚠️ Rejecting fork: new chain has lower stake or higher hash\n")
-// 		return false
-// 	}
-// }
-
 func (bc *Blockchain) handleFork(forkBlock *Block) bool {
 	chain := bc.reconstructChain(forkBlock)
 	if chain == nil || len(chain) <= len(bc.Blocks) {
@@ -568,4 +449,53 @@ func (bc *Blockchain) reconstructChain(block *Block) []*Block {
 	}
 
 	return chain
+}
+func (bc *Blockchain) GetPendingTransactions() []*Transaction {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	return bc.PendingTxs
+}
+func (bc *Blockchain) GetBalance(address string) uint64 {
+	if acc, ok := bc.GlobalState[address]; ok {
+		return acc.Balance
+	}
+	return 0
+}
+
+func (bc *Blockchain) GetNonce(address string) uint64 {
+	if acc, ok := bc.GlobalState[address]; ok {
+		return acc.Nonce
+	}
+	return 0
+}
+
+func (bc *Blockchain) ProcessTransaction(tx *Transaction) error {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	// Validate basic transaction fields
+	if tx.From == "" || tx.To == "" || tx.Amount <= 0 {
+		return fmt.Errorf("invalid transaction: missing fields or negative amount")
+	}
+
+	// Ensure sender exists
+	senderState, exists := bc.GlobalState[tx.From]
+	if !exists {
+		return fmt.Errorf("sender not found in global state")
+	}
+
+	// Validate nonce
+	if tx.Nonce != senderState.Nonce {
+		return fmt.Errorf("invalid nonce: expected %d, got %d", senderState.Nonce, tx.Nonce)
+	}
+
+	// Validate balance
+	if uint64(tx.Amount) > senderState.Balance {
+		return fmt.Errorf("insufficient balance")
+	}
+
+	// Queue transaction for block inclusion
+	bc.PendingTxs = append(bc.PendingTxs, tx)
+
+	return nil
 }
