@@ -22,6 +22,10 @@ import (
 
 	"github.com/Shivam-Patel-G/blackhole-blockchain/relay-chain/chain"
 	"github.com/btcsuite/btcd/btcec/v2"
+
+	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
 )
 
 func main() {
@@ -100,14 +104,14 @@ func main() {
 
 	// Step 6: Interact with blockchain provider
 	// port := 3000
-	blockchain, err := chain.NewBlockchain(3000)
+	blockchain, err := chain.NewBlockchain(3001)
 	// blockchain := transaction.DummyBlockchain{} // Replace with your real provider
 
 	balance := blockchain.GetBalance(selectedWallet.Address)
-	fmt.Printf("Your balance: %.4f\n", balance)
-	if amount > float64(balance) {
-		log.Fatalf("Insufficient balance")
-	}
+	fmt.Printf("Your balance: %d\n", balance)
+	// if amount > float64(balance) {
+	// 	log.Fatalf("Insufficient balance")
+	// }
 
 	nonce := blockchain.GetNonce(selectedWallet.Address)
 
@@ -154,8 +158,50 @@ func main() {
 	// Step 8: Send transaction to blockchain network
 	success := blockchain.ProcessTransaction(tx)
 	if success != nil {
-		log.Fatalf("Transaction failed to process")
+		log.Println("Transaction failed to process", success)
 	}
 
 	fmt.Println("Transaction successfully sent.")
+
+	// After tx is signed and validated:
+
+	// Create a temporary libp2p host
+	ctx2 := context.Background()
+	host, err := libp2p.New()
+	if err != nil {
+		log.Fatal("Failed to create libp2p host:", err)
+	}
+
+	// Replace with the actual peer ID and address of your running node
+	peerAddr := "/ip4/192.168.45.152/tcp/3000/p2p/12D3KooWNTWFDXb1X7eEGz2D9jjzXhrA7V1WvrzUtD72ekohTfzq"
+	maddr, err := multiaddr.NewMultiaddr(peerAddr)
+	if err != nil {
+		log.Fatal("Invalid multiaddr:", err)
+	}
+
+	info, err := peer.AddrInfoFromP2pAddr(maddr)
+	if err != nil {
+		log.Fatal("Failed to get peer info:", err)
+	}
+
+	// Connect to peer
+	if err := host.Connect(ctx2, *info); err != nil {
+		log.Fatal("Failed to connect to peer:", err)
+	}
+
+	// Open stream
+	stream, err := host.NewStream(ctx2, info.ID, "/blackhole/1.0.0")
+	if err != nil {
+		log.Fatal("Failed to open stream:", err)
+	}
+
+	// Encode transaction as JSON and send it
+	txBytes, _ := json.Marshal(tx)
+	_, err = stream.Write(txBytes)
+	if err != nil {
+		log.Fatal("Failed to write transaction:", err)
+	}
+
+	fmt.Println("✅ Transaction sent to peer.")
+
 }

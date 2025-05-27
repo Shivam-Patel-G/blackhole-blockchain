@@ -93,7 +93,7 @@ func main() {
 	startCLI(ctx, bc, nodeID)
 }
 func miningLoop(ctx context.Context, bc *chain.Blockchain, validator *consensus.Validator, nodeID string) {
-	ticker := time.NewTicker(3 * time.Second) // Optional minimal interval
+	ticker := time.NewTicker(6 * time.Second) // Optional minimal interval
 	defer ticker.Stop()
 
 	for {

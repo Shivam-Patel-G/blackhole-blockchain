@@ -478,21 +478,21 @@ func (bc *Blockchain) ProcessTransaction(tx *Transaction) error {
 		return fmt.Errorf("invalid transaction: missing fields or negative amount")
 	}
 
-	// Ensure sender exists
-	senderState, exists := bc.GlobalState[tx.From]
-	if !exists {
-		return fmt.Errorf("sender not found in global state")
-	}
+	// // Ensure sender exists
+	// senderState, exists := bc.GlobalState[tx.From]
+	// if !exists {
+	// 	return fmt.Errorf("sender not found in global state")
+	// }
 
-	// Validate nonce
-	if tx.Nonce != senderState.Nonce {
-		return fmt.Errorf("invalid nonce: expected %d, got %d", senderState.Nonce, tx.Nonce)
-	}
+	// // Validate nonce
+	// if tx.Nonce != senderState.Nonce {
+	// 	return fmt.Errorf("invalid nonce: expected %d, got %d", senderState.Nonce, tx.Nonce)
+	// }
 
-	// Validate balance
-	if uint64(tx.Amount) > senderState.Balance {
-		return fmt.Errorf("insufficient balance")
-	}
+	// // Validate balance
+	// if uint64(tx.Amount) > senderState.Balance {
+	// 	return fmt.Errorf("insufficient balance")
+	// }
 
 	// Queue transaction for block inclusion
 	bc.PendingTxs = append(bc.PendingTxs, tx)

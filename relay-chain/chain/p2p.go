@@ -38,7 +38,8 @@ func GetLocalIP() string {
 }
 
 func NewNode(ctx context.Context, port int) (*Node, error) {
-	ip := GetLocalIP()
+	// ip := GetLocalIP()
+	ip := "192.168.45.152"
 	listenAddr := fmt.Sprintf("/ip4/%s/tcp/%d", ip, port)
 
 	h, err := libp2p.New(
@@ -100,15 +101,17 @@ func (n *Node) disconnectPeer(peerID peer.ID) {
 	n.Host.Network().ClosePeer(peerID)
 	fmt.Printf("🚫 Disconnected peer %s due to invalid blocks\n", peerID)
 }
+
 type BlockchainComparisonResult struct {
-	IsSameLength     bool
-	LocalAhead       bool
-	PeerAhead        bool
-	CommonPrefix     int
-	DivergencePoint  int
-	Conflict         bool
-	Notes            []string
+	IsSameLength    bool
+	LocalAhead      bool
+	PeerAhead       bool
+	CommonPrefix    int
+	DivergencePoint int
+	Conflict        bool
+	Notes           []string
 }
+
 func (bc *Blockchain) CompareWithPeer(peer *Blockchain) BlockchainComparisonResult {
 	bc.mu.RLock()
 	peer.mu.RLock()
@@ -161,19 +164,17 @@ func (bc *Blockchain) CompareWithPeer(peer *Blockchain) BlockchainComparisonResu
 	return result
 }
 
-
 func (n *Node) handleStream(s network.Stream) {
 	defer s.Close()
 
 	peerID := s.Conn().RemotePeer()
 	fmt.Printf("📡 Received stream from peer: %s\n", peerID)
 
-
-
 	var msg Message
 	if err := msg.Decode(s); err != nil {
 		fmt.Printf("❌ Error decoding message from peer %s: %v\n", peerID, err)
 		if msg.Version != ProtocolVersion {
+			fmt.Println("actual version: ", ProtocolVersion)
 			fmt.Printf("⚠️ Version mismatch from peer %s: got %d, expected %d\n", peerID, msg.Version, ProtocolVersion)
 			n.disconnectPeer(peerID)
 		}
