@@ -131,6 +131,8 @@ func main() {
 		log.Fatalf("Failed to sign transaction: %v", err)
 	}
 	tx.Signature = sig
+	pubKeyBytes := privKey.PubKey().SerializeCompressed()
+	tx.PublicKey = pubKeyBytes
 
 	// Step 6: Verify the transaction signature
 
@@ -175,7 +177,7 @@ func main() {
 	}
 
 	// Replace with the actual peer ID and address of your running node
-	peerAddr := "/ip4/192.168.0.93/tcp/3000/p2p/12D3KooWD9SdL14BRy1mi5YTt8Qtjp7q86xn6eFZzAyTZ7QcRZPg"
+	peerAddr := "/ip4/192.168.0.90/tcp/3000/p2p/12D3KooWCxAkiuzdzomEY7YFaiEUyKeHnUWFpkguzc5FF4kCWpm9"
 	maddr, err := multiaddr.NewMultiaddr(peerAddr)
 	if err != nil {
 		log.Fatal("Invalid multiaddr:", err)

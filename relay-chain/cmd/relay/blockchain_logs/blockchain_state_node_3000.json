@@ -1,29 +1,59 @@
 {
   "node_id": "node_3000",
-  "block_height": 1,
+  "block_height": 2,
   "latest_block": {
     "Header": {
-      "index": 0,
-      "timestamp": "2025-05-15T07:55:00Z",
-      "previousHash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "index": 1,
+      "timestamp": "2025-05-27T10:59:51.6041361Z",
+      "previousHash": "043664d479adfe8943f36048bd0c351bc203cde55e9434ede586e04286ea0aba",
       "validator": "genesis-validator",
       "stakeSnapshot": 1000,
-      "merkleRoot": "",
+      "merkleRoot": "b1886f3bcd8d1a79372f6abb9d1bce1f9ac384a08f11f34d38ffbe5328cfb4fc",
       "stateRoot": "0x0",
       "receiptsRoot": "0x0",
       "consensusRound": 0
     },
-    "Transactions": [],
-    "hash": "043664d479adfe8943f36048bd0c351bc203cde55e9434ede586e04286ea0aba"
+    "Transactions": [
+      {
+        "id": "81ac522156a685a1df0b84d848dd5149e204c6e21d9fac9562d06f4200c25e8a",
+        "type": "TOKEN_TRANSFER",
+        "from": "system",
+        "to": "genesis-validator",
+        "amount": 10,
+        "token": "BHX",
+        "fee": 0,
+        "nonce": 0,
+        "signature": null,
+        "data": "",
+        "timestamp": 1748343591,
+        "public_key": null
+      },
+      {
+        "id": "",
+        "type": "",
+        "from": "02bdfaa9139f440a769c473facb1c487c4b87026b60081bab0c9fba9b0b6558553",
+        "to": "02bdfaa9139f440a769c473facb1c487c4b87026b60081bab0c9fba9b0b6558553",
+        "amount": 34,
+        "token": "",
+        "fee": 0,
+        "nonce": 0,
+        "signature": "MEUCIQCjudaY02I9eJZubbfk1PjWNtdeArRgQ8dt/WoXeoTR5AIgOfWfuZeR4jM++mI4Slb8eS5xp37QjnjUb0G4Ek9NWbs=",
+        "data": "",
+        "timestamp": 1748343585,
+        "public_key": "Ar36qROfRAp2nEc/rLHEh8S4cCa2AIG6sMn7qbC2VYVT"
+      }
+    ],
+    "hash": "1ae30ecdd790a869bd692d0f82d91c4758c3571a1e15a5c19ce15f42afde1d70"
   },
   "pending_blocks": 0,
-  "total_supply": 1000000000,
-  "timestamp": "2025-05-27T15:19:09.7123408+05:30",
+  "total_supply": 1000000010,
+  "timestamp": "2025-05-27T16:55:41.6038508+05:30",
   "fork_info": {
     "has_fork": false,
     "reason": "No forks detected"
   },
   "block_hashes": [
-    "043664d479adfe8943f36048bd0c351bc203cde55e9434ede586e04286ea0aba"
+    "043664d479adfe8943f36048bd0c351bc203cde55e9434ede586e04286ea0aba",
+    "1ae30ecdd790a869bd692d0f82d91c4758c3571a1e15a5c19ce15f42afde1d70"
   ]
 }

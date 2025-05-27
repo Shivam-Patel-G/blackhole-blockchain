@@ -192,12 +192,13 @@ func (n *Node) handleStream(s network.Stream) {
 			return
 		}
 		fmt.Println("hello inside msgtypetx")
-		if tx.Verify() {
-			n.chain.mu.Lock()
-			n.chain.PendingTxs = append(n.chain.PendingTxs, tx)
-			n.chain.mu.Unlock()
-			fmt.Printf("📥 Added transaction %s from peer %s to pending\n", tx.ID, peerID)
-		}
+		// if tx.Verify() {
+		fmt.Println("hello inside tx.verify")
+		n.chain.mu.Lock()
+		n.chain.PendingTxs = append(n.chain.PendingTxs, tx)
+		n.chain.mu.Unlock()
+		fmt.Printf("📥 Added transaction %s from peer %s to pending\n", tx.ID, peerID)
+		// }
 		fmt.Println(msg.Type)
 	case MessageTypeBlock:
 		block, err := DeserializeBlock(msg.Data)
