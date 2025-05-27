@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -38,8 +39,8 @@ func GetLocalIP() string {
 }
 
 func NewNode(ctx context.Context, port int) (*Node, error) {
-	// ip := GetLocalIP()
-	ip := "192.168.45.152"
+	ip := GetLocalIP()
+	// ip := "192.168.45.152"
 	listenAddr := fmt.Sprintf("/ip4/%s/tcp/%d", ip, port)
 
 	h, err := libp2p.New(
@@ -171,6 +172,8 @@ func (n *Node) handleStream(s network.Stream) {
 	fmt.Printf("📡 Received stream from peer: %s\n", peerID)
 
 	var msg Message
+	s.SetReadDeadline(time.Now().Add(5 * time.Second))
+	defer s.SetReadDeadline(time.Time{}) // reset deadline after
 	if err := msg.Decode(s); err != nil {
 		fmt.Printf("❌ Error decoding message from peer %s: %v\n", peerID, err)
 		if msg.Version != ProtocolVersion {
@@ -188,12 +191,14 @@ func (n *Node) handleStream(s network.Stream) {
 			fmt.Printf("❌ Error deserializing transaction from peer %s: %v\n", peerID, err)
 			return
 		}
+		fmt.Println("hello inside msgtypetx")
 		if tx.Verify() {
 			n.chain.mu.Lock()
 			n.chain.PendingTxs = append(n.chain.PendingTxs, tx)
 			n.chain.mu.Unlock()
 			fmt.Printf("📥 Added transaction %s from peer %s to pending\n", tx.ID, peerID)
 		}
+		fmt.Println(msg.Type)
 	case MessageTypeBlock:
 		block, err := DeserializeBlock(msg.Data)
 		if err != nil {
@@ -291,6 +296,9 @@ func (n *Node) handleStream(s network.Stream) {
 		} else {
 			fmt.Printf("⚠️ Failed to add sync block %d from peer %s\n", block.Header.Index, peerID)
 		}
+	default:
+		fmt.Printf("⚠️ Unknown message type received: %v\n", msg.Type)
+
 	}
 }
 

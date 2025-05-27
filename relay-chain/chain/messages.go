@@ -57,6 +57,7 @@ func DeserializeTransaction(data []byte) (*Transaction, error) {
 	var tx Transaction
 	dec := gob.NewDecoder(bytes.NewReader(data))
 	if err := dec.Decode(&tx); err != nil {
+		fmt.Println("hello here ")
 		return nil, err
 	}
 	return &tx, nil

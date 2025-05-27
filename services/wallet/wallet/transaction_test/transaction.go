@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
 
 	"fmt"
@@ -104,7 +106,7 @@ func main() {
 
 	// Step 6: Interact with blockchain provider
 	// port := 3000
-	blockchain, err := chain.NewBlockchain(3001)
+	blockchain, _ := chain.NewBlockchain(3001)
 	// blockchain := transaction.DummyBlockchain{} // Replace with your real provider
 
 	balance := blockchain.GetBalance(selectedWallet.Address)
@@ -173,7 +175,7 @@ func main() {
 	}
 
 	// Replace with the actual peer ID and address of your running node
-	peerAddr := "/ip4/192.168.45.152/tcp/3000/p2p/12D3KooWNTWFDXb1X7eEGz2D9jjzXhrA7V1WvrzUtD72ekohTfzq"
+	peerAddr := "/ip4/192.168.0.93/tcp/3000/p2p/12D3KooWD9SdL14BRy1mi5YTt8Qtjp7q86xn6eFZzAyTZ7QcRZPg"
 	maddr, err := multiaddr.NewMultiaddr(peerAddr)
 	if err != nil {
 		log.Fatal("Invalid multiaddr:", err)
@@ -186,6 +188,7 @@ func main() {
 
 	// Connect to peer
 	if err := host.Connect(ctx2, *info); err != nil {
+		log.Println("the info :", info)
 		log.Fatal("Failed to connect to peer:", err)
 	}
 
@@ -195,13 +198,34 @@ func main() {
 		log.Fatal("Failed to open stream:", err)
 	}
 
-	// Encode transaction as JSON and send it
-	txBytes, _ := json.Marshal(tx)
-	_, err = stream.Write(txBytes)
-	if err != nil {
-		log.Fatal("Failed to write transaction:", err)
+	// Step 2: Encode the transaction to bytes
+	var txBuf bytes.Buffer
+	txEncoder := gob.NewEncoder(&txBuf)
+	if err := txEncoder.Encode(tx); err != nil {
+		log.Fatalf("❌ Failed to encode transaction: %v", err)
 	}
 
+	// Step 3: Wrap it in a Message
+	msg := &chain.Message{
+		Type:    chain.MessageTypeTx, // ✅ Use your constant
+		Data:    txBuf.Bytes(),
+		Version: chain.ProtocolVersion, // e.g., 2
+	}
+
+	// Step 4: Send the message
+	encoder := gob.NewEncoder(stream)
+	if err := encoder.Encode(msg); err != nil {
+		log.Fatalf("❌ Failed to encode message: %v", err)
+	}
+	// // Encode transaction as JSON and send it
+	// txBytes, _ := json.Marshal(tx)
+	// _, err = stream.Write(txBytes)
+	// if err != nil {
+	// 	log.Fatal("Failed to write transaction:", err)
+	// }
+
 	fmt.Println("✅ Transaction sent to peer.")
+
+	fmt.Println("✅ Transaction (as part of a Message) sent to peer using GOB.")
 
 }
