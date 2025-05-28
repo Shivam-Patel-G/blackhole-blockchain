@@ -1,67 +1,60 @@
 {
   "node_id": "node_3001",
-  "block_height": 10,
+  "block_height": 3,
   "latest_block": {
     "Header": {
-      "index": 9,
-      "timestamp": "2025-05-28T08:59:49.4213753Z",
-      "previousHash": "8a099433731c20ec89436a6f2cd0f3d7df24effa36316ff4c15d9bb0d25fee24",
-      "validator": "genesis-validator",
-      "stakeSnapshot": 1050,
-      "merkleRoot": "55061f84400852a1b0b7ba263c71f10cbd72eff86af9be3bae738e5ad0f5dc31",
+      "index": 2,
+      "timestamp": "2025-05-28T11:56:10.2544359Z",
+      "previousHash": "9cace27ca58c02877bdb9ac6b02df8a2c465c992a6b66c34e2a632a1e830fe21",
+      "validator": "node1",
+      "stakeSnapshot": 1000,
+      "merkleRoot": "e002f728ec06ed0b8555dcc4e095b918329f7e3fb0c78d5c559e982069aa23bb",
       "stateRoot": "0x0",
       "receiptsRoot": "0x0",
       "consensusRound": 0
     },
     "Transactions": [
       {
-        "id": "038de664be63cd0984a2d5a927b423e954cd1e8f5dcb17f9d2493eb03f20ff26",
+        "id": "a96ab51c9848e9adecdce8d8d62b9cbec0b940f5b097b8a8b539552205df114a",
         "type": "TOKEN_TRANSFER",
         "from": "system",
-        "to": "genesis-validator",
+        "to": "node1",
         "amount": 10,
         "token": "BHX",
         "fee": 0,
         "nonce": 0,
         "signature": null,
         "data": "",
-        "timestamp": 1748422789,
+        "timestamp": 1748433370,
         "public_key": null
       },
       {
         "id": "",
         "type": "",
         "from": "0287fedc93e5d1e3f2800f8cde4d5c027851fb85b6bde5423984cd96c79f037165",
-        "to": "03b888f0061d08a09003a25ac94a734905c71f559ab281b4f9bc16cb24785efb6d",
-        "amount": 5,
+        "to": "03ad258940b277432cce8d37c0bfb73753e61f3bb08d0c04e9d5748ba4b9962ef5",
+        "amount": 50,
         "token": "",
         "fee": 0,
         "nonce": 0,
-        "signature": "MEUCIQDv2lI6XnNTZXrxo9vePsC8Am7XVIFcKppRkkcPlI544wIgATCmlcT/P8VqS4GNDyeevyTachC8L5BnnNbkMkkYNW8=",
+        "signature": "MEQCID001hY5i91i9trPasXWdFZoiAMUktyYXPZMX2m7/oj/AiAFfYrzefiYZI0YX8RgOX9PvzGaEYszsQ43NRfIABYmkg==",
         "data": "",
-        "timestamp": 1748422788,
+        "timestamp": 1748433368,
         "public_key": "Aof+3JPl0ePygA+M3k1cAnhR+4W2veVCOYTNlsefA3Fl"
       }
     ],
-    "hash": "18b3df88d97fefc0e886db4bb47f9f0011856e7c146538d06a1bae79851ebd31"
+    "hash": "bb36bd013f8f547f674df1d63b01f4a5ef9003b2fcfcbffe2598d041d493cbc7"
   },
   "pending_blocks": 0,
   "total_supply": 1000000000,
-  "timestamp": "2025-05-28T14:31:50.2165862+05:30",
+  "timestamp": "2025-05-28T17:49:15.9555171+05:30",
   "fork_info": {
     "has_fork": false,
     "reason": "No forks detected"
   },
   "block_hashes": [
     "ab38146e9cc39174a2fa0a6d2fa3abe9bfe72ec7db60702410375efd3d714699",
-    "064b5f41eb9f8cd5a63a5ee1a1882d546c724a491eac2da52944b99050b83de2",
-    "fa2b52e5f37cc20a9722ca9503cdf5cb4553e59a99c1cf1a4a2960ff0fcbfa1a",
-    "579b5d9a986795cfc463326e2687018d14c80ae51afb86b96690651804fac691",
-    "cefd72c2dc27f17904d98176dfb2076952b6bc71629a9aba7790e7fc1144830a",
-    "1572456ab61b5eb3cc52511134028c3d019bf103f04eedbc12b65b4e8a4b1f5f",
-    "61fb5110a7964e3aea3656a90010dfb331074e4f46b905e04e5f53564a328547",
-    "1ce612126c0dcd2539d057488eda3757cb448f5d88cd6c890d92873e8190ec7f",
-    "8a099433731c20ec89436a6f2cd0f3d7df24effa36316ff4c15d9bb0d25fee24",
-    "18b3df88d97fefc0e886db4bb47f9f0011856e7c146538d06a1bae79851ebd31"
+    "9cace27ca58c02877bdb9ac6b02df8a2c465c992a6b66c34e2a632a1e830fe21",
+    "bb36bd013f8f547f674df1d63b01f4a5ef9003b2fcfcbffe2598d041d493cbc7"
   ]
 }

@@ -3,9 +3,13 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
+
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type AccountState struct {
@@ -24,6 +28,7 @@ type Blockchain struct {
 	BlockReward   uint64
 	pendingBlocks map[uint64]*Block
 	GlobalState   map[string]*AccountState
+	DB            *leveldb.DB
 }
 type RealBlockchain struct {
 	Blockchain *Blockchain // Pointer to the real blockchain
@@ -31,6 +36,12 @@ type RealBlockchain struct {
 
 func NewBlockchain(p2pPort int) (*Blockchain, error) {
 	genesis := createGenesisBlock()
+
+	dbPath := fmt.Sprintf("blockchaindb_%d", p2pPort)
+	db, err := leveldb.OpenFile(dbPath, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	// Initialize P2P node
 	node, err := NewNode(context.Background(), p2pPort)
@@ -52,6 +63,7 @@ func NewBlockchain(p2pPort int) (*Blockchain, error) {
 		BlockReward:   10,
 		pendingBlocks: make(map[uint64]*Block),
 		GlobalState:   make(map[string]*AccountState), // ✅
+		DB:            db,
 	}
 	bc.GlobalState["genesis-validator"] = &AccountState{
 		Balance: 10, // same as genesis rewardTx.Amount
@@ -59,9 +71,11 @@ func NewBlockchain(p2pPort int) (*Blockchain, error) {
 	}
 	bc.GlobalState["0287fedc93e5d1e3f2800f8cde4d5c027851fb85b6bde5423984cd96c79f037165"] = &AccountState{
 		Balance: 1000, // give this wallet 1000 tokens initially
-
+		Nonce:   0,
 	}
 
+	// Optional: Load GlobalState from DB
+	bc.loadGlobalState()
 	return bc, nil
 }
 
@@ -493,11 +507,13 @@ func (bc *Blockchain) GetPendingTransactions() []*Transaction {
 	defer bc.mu.RUnlock()
 	return bc.PendingTxs
 }
-func (bc *Blockchain) GetBalance(address string) uint64 {
-	if acc, ok := bc.GlobalState[address]; ok {
-		return acc.Balance
+
+func (bc *Blockchain) GetBalance(addr string) uint64 {
+	state, ok := bc.GlobalState[addr]
+	if !ok {
+		return 0
 	}
-	return 0
+	return state.Balance
 }
 
 func (bc *Blockchain) GetNonce(address string) uint64 {
@@ -561,8 +577,64 @@ func (bc *Blockchain) ApplyTransaction(tx *Transaction) bool {
 
 	senderState.Balance -= amount
 	fmt.Println("Sender balance:", senderState.Balance)
+	bc.SetBalance(sender, senderState.Balance)
 	receiverState := bc.getOrCreateAccount(receiver)
 	receiverState.Balance += amount
+	fmt.Println("Receiver balance:", receiverState.Balance)
+	bc.SetBalance(receiver, receiverState.Balance)
 
 	return true
+}
+
+func (bc *Blockchain) SetBalance(addr string, balance uint64) {
+	state, ok := bc.GlobalState[addr]
+	if !ok {
+		state = &AccountState{}
+	}
+	state.Balance = balance
+	bc.GlobalState[addr] = state
+	_ = bc.SaveAccountState(addr, state)
+}
+
+func (bc *Blockchain) SaveAccountState(addr string, state *AccountState) error {
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return bc.DB.Put([]byte("account:"+addr), data, nil)
+}
+func (bc *Blockchain) LoadAccountState(addr string) (*AccountState, error) {
+	data, err := bc.DB.Get([]byte("account:"+addr), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var state AccountState
+	err = json.Unmarshal(data, &state)
+	if err != nil {
+		return nil, err
+	}
+
+	return &state, nil
+}
+
+func (bc *Blockchain) loadGlobalState() {
+	iter := bc.DB.NewIterator(nil, nil)
+	defer iter.Release()
+
+	for iter.Next() {
+		key := string(iter.Key())
+		if len(key) >= 8 && key[:8] == "account:" {
+			addr := key[8:]
+			var state AccountState
+			err := json.Unmarshal(iter.Value(), &state)
+			if err == nil {
+				bc.GlobalState[addr] = &state
+			}
+		}
+	}
+
+	if err := iter.Error(); err != nil {
+		log.Println("Error loading global state:", err)
+	}
 }

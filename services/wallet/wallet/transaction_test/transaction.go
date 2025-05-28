@@ -165,10 +165,6 @@ func main() {
 	// 	log.Println("Transaction failed to process", success)
 	// }
 
-	// fmt.Println("Transaction successfully sent.")
-
-	// After tx is signed and validated:
-
 	// Create a temporary libp2p host
 	ctx2 := context.Background()
 	host, err := libp2p.New()
@@ -177,7 +173,7 @@ func main() {
 	}
 
 	// Replace with the actual peer ID and address of your running node
-	peerAddr := "/ip4/192.168.0.73/tcp/3000/p2p/12D3KooWSaFUZ3qBm9uq3ezLJxbxnfBsfo6oyS6dt7RCuEiLXRaK"
+	peerAddr := "/ip4/192.168.0.73/tcp/3000/p2p/12D3KooWAJ7A2akZFNGzgwFKK3H78HydTozbkNmQjkKC82pAmTDN"
 	maddr, err := multiaddr.NewMultiaddr(peerAddr)
 	if err != nil {
 		log.Fatal("Invalid multiaddr:", err)
