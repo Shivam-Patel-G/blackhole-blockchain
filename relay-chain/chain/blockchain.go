@@ -53,14 +53,37 @@ func NewBlockchain(p2pPort int) (*Blockchain, error) {
 		pendingBlocks: make(map[uint64]*Block),
 		GlobalState:   make(map[string]*AccountState), // ✅
 	}
+	bc.GlobalState["genesis-validator"] = &AccountState{
+		Balance: 10, // same as genesis rewardTx.Amount
+		Nonce:   0,
+	}
+	bc.GlobalState["0287fedc93e5d1e3f2800f8cde4d5c027851fb85b6bde5423984cd96c79f037165"] = &AccountState{
+		Balance: 1000, // give this wallet 1000 tokens initially
+
+	}
 
 	return bc, nil
 }
 
 func createGenesisBlock() *Block {
+	rewardTx := &Transaction{
+		ID:        "",
+		Type:      TokenTransfer,
+		From:      "system",
+		To:        "genesis-validator",
+		Amount:    10,
+		Token:     "BHX",
+		Fee:       0,
+		Nonce:     0,
+		Timestamp: time.Date(2025, 5, 15, 7, 55, 0, 0, time.UTC).Unix(),
+		Signature: nil,
+		PublicKey: nil,
+	}
+	rewardTx.ID = rewardTx.CalculateHash()
+
 	block := NewBlock(
 		0,
-		[]*Transaction{},
+		[]*Transaction{rewardTx},
 		"0000000000000000000000000000000000000000000000000000000000000000",
 		"genesis-validator",
 		1000,
@@ -78,6 +101,7 @@ func (bc *Blockchain) MineBlock(selectedValidator string) *Block {
 
 	// Get current index
 	index := uint64(len(bc.Blocks))
+	fmt.Println("index: ", index)
 
 	// Get previous block's hash
 	var prevHash string
@@ -189,6 +213,12 @@ func (bc *Blockchain) AddBlock(block *Block) bool {
 	// 	}
 	// }
 
+	for _, tx := range block.Transactions {
+		success := bc.ApplyTransaction(tx)
+		if !success {
+			fmt.Println("Invalid tx in block, skipping:", tx)
+		}
+	}
 	// Add block normally
 	bc.Blocks = append(bc.Blocks, block)
 	bc.PendingTxs = make([]*Transaction, 0)
@@ -506,4 +536,33 @@ func (bc *Blockchain) ProcessTransaction(tx *Transaction) error {
 	bc.PendingTxs = append(bc.PendingTxs, tx)
 
 	return nil
+}
+func (bc *Blockchain) getOrCreateAccount(address string) *AccountState {
+	if acc, exists := bc.GlobalState[address]; exists {
+		return acc
+	}
+	bc.GlobalState[address] = &AccountState{
+		Balance: 0,
+		// Add other fields like Nonce, CodeHash etc if needed
+	}
+	return bc.GlobalState[address]
+}
+
+func (bc *Blockchain) ApplyTransaction(tx *Transaction) bool {
+
+	sender := tx.From
+	receiver := tx.To
+	amount := tx.Amount
+
+	senderState := bc.getOrCreateAccount(sender)
+	if senderState.Balance < amount {
+		return false // insufficient funds
+	}
+
+	senderState.Balance -= amount
+	fmt.Println("Sender balance:", senderState.Balance)
+	receiverState := bc.getOrCreateAccount(receiver)
+	receiverState.Balance += amount
+
+	return true
 }

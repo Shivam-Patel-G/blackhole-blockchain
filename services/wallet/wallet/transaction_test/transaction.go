@@ -159,13 +159,13 @@ func main() {
 	fmt.Println("Signed transaction:")
 	fmt.Println(string(txJSON))
 
-	// Step 8: Send transaction to blockchain network
-	success := blockchain.ProcessTransaction(tx)
-	if success != nil {
-		log.Println("Transaction failed to process", success)
-	}
+	// // Step 8: Send transaction to blockchain network
+	// success := blockchain.ProcessTransaction(tx)
+	// if success != nil {
+	// 	log.Println("Transaction failed to process", success)
+	// }
 
-	fmt.Println("Transaction successfully sent.")
+	// fmt.Println("Transaction successfully sent.")
 
 	// After tx is signed and validated:
 
@@ -177,7 +177,7 @@ func main() {
 	}
 
 	// Replace with the actual peer ID and address of your running node
-	peerAddr := "/ip4/192.168.0.90/tcp/3000/p2p/12D3KooWCxAkiuzdzomEY7YFaiEUyKeHnUWFpkguzc5FF4kCWpm9"
+	peerAddr := "/ip4/192.168.0.73/tcp/3000/p2p/12D3KooWSaFUZ3qBm9uq3ezLJxbxnfBsfo6oyS6dt7RCuEiLXRaK"
 	maddr, err := multiaddr.NewMultiaddr(peerAddr)
 	if err != nil {
 		log.Fatal("Invalid multiaddr:", err)
@@ -219,12 +219,6 @@ func main() {
 	if err := encoder.Encode(msg); err != nil {
 		log.Fatalf("❌ Failed to encode message: %v", err)
 	}
-	// // Encode transaction as JSON and send it
-	// txBytes, _ := json.Marshal(tx)
-	// _, err = stream.Write(txBytes)
-	// if err != nil {
-	// 	log.Fatal("Failed to write transaction:", err)
-	// }
 
 	fmt.Println("✅ Transaction sent to peer.")
 

@@ -1,59 +1,64 @@
 {
   "node_id": "node_3000",
-  "block_height": 2,
+  "block_height": 7,
   "latest_block": {
     "Header": {
-      "index": 1,
-      "timestamp": "2025-05-27T10:59:51.6041361Z",
-      "previousHash": "043664d479adfe8943f36048bd0c351bc203cde55e9434ede586e04286ea0aba",
-      "validator": "genesis-validator",
-      "stakeSnapshot": 1000,
-      "merkleRoot": "b1886f3bcd8d1a79372f6abb9d1bce1f9ac384a08f11f34d38ffbe5328cfb4fc",
+      "index": 6,
+      "timestamp": "2025-05-28T10:21:15.7326034Z",
+      "previousHash": "dd27e296ce101e16eb1ed00062ddb5998d76d70f04b50f315962fea9ab6af33c",
+      "validator": "node1",
+      "stakeSnapshot": 1040,
+      "merkleRoot": "4abe87cbd8d5a309db48fea72a80b705a6e72a9b49675f7e505b7798c87f98ee",
       "stateRoot": "0x0",
       "receiptsRoot": "0x0",
       "consensusRound": 0
     },
     "Transactions": [
       {
-        "id": "81ac522156a685a1df0b84d848dd5149e204c6e21d9fac9562d06f4200c25e8a",
+        "id": "78ea0c36e104881caebdb58b9b93f9cc61c7a3236ed0d7a3520167a1b55d52e3",
         "type": "TOKEN_TRANSFER",
         "from": "system",
-        "to": "genesis-validator",
+        "to": "node1",
         "amount": 10,
         "token": "BHX",
         "fee": 0,
         "nonce": 0,
         "signature": null,
         "data": "",
-        "timestamp": 1748343591,
+        "timestamp": 1748427675,
         "public_key": null
       },
       {
         "id": "",
         "type": "",
-        "from": "02bdfaa9139f440a769c473facb1c487c4b87026b60081bab0c9fba9b0b6558553",
-        "to": "02bdfaa9139f440a769c473facb1c487c4b87026b60081bab0c9fba9b0b6558553",
-        "amount": 34,
+        "from": "024b2a959328084a9d4b772805ca33aee3dcd1459c6da4b0bab5eae0464314e9a5",
+        "to": "0287fedc93e5d1e3f2800f8cde4d5c027851fb85b6bde5423984cd96c79f037165",
+        "amount": 3,
         "token": "",
         "fee": 0,
         "nonce": 0,
-        "signature": "MEUCIQCjudaY02I9eJZubbfk1PjWNtdeArRgQ8dt/WoXeoTR5AIgOfWfuZeR4jM++mI4Slb8eS5xp37QjnjUb0G4Ek9NWbs=",
+        "signature": "MEUCIQCt/FeXUm4/zbViX3qF2UOvWCz9sRE7swftLpU815PbAwIgTaZyTUmgVI5rlDqVrGISWGiJEkYApUmRjTSQTSUYyYo=",
         "data": "",
-        "timestamp": 1748343585,
-        "public_key": "Ar36qROfRAp2nEc/rLHEh8S4cCa2AIG6sMn7qbC2VYVT"
+        "timestamp": 1748427669,
+        "public_key": "A7iI8AYdCKCQA6JayUpzSQXHH1WasoG0+bwWyyR4Xvtt"
       }
     ],
-    "hash": "1ae30ecdd790a869bd692d0f82d91c4758c3571a1e15a5c19ce15f42afde1d70"
+    "hash": "cf4d621c4ddb37b4f88327a3776fe7d55c9a98b66044049b9f8699611b515430"
   },
   "pending_blocks": 0,
-  "total_supply": 1000000010,
-  "timestamp": "2025-05-27T16:55:41.6038508+05:30",
+  "total_supply": 1000000060,
+  "timestamp": "2025-05-28T16:05:25.7350386+05:30",
   "fork_info": {
     "has_fork": false,
     "reason": "No forks detected"
   },
   "block_hashes": [
-    "043664d479adfe8943f36048bd0c351bc203cde55e9434ede586e04286ea0aba",
-    "1ae30ecdd790a869bd692d0f82d91c4758c3571a1e15a5c19ce15f42afde1d70"
+    "ab38146e9cc39174a2fa0a6d2fa3abe9bfe72ec7db60702410375efd3d714699",
+    "78609f70dfe3f1ef03abcb3cfae181e83a8670716c499fd7ec1b13a60926a899",
+    "3c3346d3007c9aa0ca14ec6ed39420e440cf9b3e842716884699a4c4b95eee01",
+    "89c583b7adbb1463b8153a632cc981f46d677845f2db1c6c7c600f8131cbabb5",
+    "a29b8dbbab8296f43f1cdf21a4d551ca9b944b999bded1f95a51b272c56997c5",
+    "dd27e296ce101e16eb1ed00062ddb5998d76d70f04b50f315962fea9ab6af33c",
+    "cf4d621c4ddb37b4f88327a3776fe7d55c9a98b66044049b9f8699611b515430"
   ]
 }
