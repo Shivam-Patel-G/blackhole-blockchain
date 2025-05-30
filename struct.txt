@@ -1,55 +1,26 @@
-X:.
+C:.
 ├───core
-│   ├───relay-chain
-│   │   ├───api
-│   │   ├───chain
-│   │   ├───cmd
-│   │   │   └───relay
-│   │   ├───consensus
-│   │   ├───crypto
-│   │   └───token
-│   │       └───demo
-│   └───runtime
-│       ├───messaging
-│       └───storage
+│   └───relay-chain
+│       ├───api
+│       ├───chain
+│       ├───cmd
+│       │   └───relay
+│       │       ├───blockchaindb_3000
+│       │       ├───blockchaindb_3001
+│       │       └───blockchain_logs
+│       ├───consensus
+│       ├───crypto
+│       ├───interoperability
+│       ├───smartcontracts
+│       └───token
+│           └───demo
 ├───docs
 ├───libs
-│   ├───crypto
-│   └───interop
 ├───parachains
-│   ├───data-storage
-│   │   ├───market
-│   │   └───proofs
-│   ├───finance
-│   └───identity
 ├───scripts
-├───services
-│   ├───relayer
-│   └───wallet
-│       ├───wallet-backend
-│       │   ├───api
-│       │   ├───client
-│       │   ├───cmd
-│       │   │   └───wallet
-│       │   ├───compliance
-│       │   ├───config
-│       │   ├───crypto
-│       │   ├───internal
-│       │   │   └───utils
-│       │   ├───relayer
-│       │   └───wallet_common
-│       └───wallet-frontend
-│           ├───cmd
-│           │   └───web
-│           ├───config
-│           ├───handlers
-│           ├───internal
-│           │   └───utils
-│           ├───static
-│           │   ├───css
-│           │   └───js
-│           ├───templates
-│           └───wallets
-└───testnets
-    ├───sandbox
-    └───simulator
+└───services
+    └───wallet
+        ├───transaction
+        ├───transaction_test
+        │   └───blockchaindb_3001
+        └───wallet
