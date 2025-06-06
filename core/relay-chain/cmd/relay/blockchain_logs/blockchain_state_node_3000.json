@@ -1,44 +1,67 @@
 {
   "node_id": "node_3000",
-  "block_height": 1,
+  "block_height": 2,
   "latest_block": {
     "Header": {
-      "index": 0,
-      "timestamp": "2025-05-15T07:55:00Z",
-      "previousHash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "index": 1,
+      "timestamp": "2025-06-06T06:45:20.6702006Z",
+      "previousHash": "681c2b97ceb8e47b357c91f98f95cd3ef8725ee04523f5946f296d7310023fb1",
       "validator": "genesis-validator",
       "stakeSnapshot": 1000,
-      "merkleRoot": "2d3371d22f27fc1258f58bb34c58ed0ea9bfe359fc45707090be6b86927c66a2",
+      "merkleRoot": "cffabe69f8965c63ce403576d2c6928da65d067ddb3a7cf1623d64e6b20e7bea",
       "stateRoot": "0x0",
       "receiptsRoot": "0x0",
       "consensusRound": 0
     },
     "Transactions": [
       {
-        "id": "2d3371d22f27fc1258f58bb34c58ed0ea9bfe359fc45707090be6b86927c66a2",
-        "type": "TOKEN_TRANSFER",
-        "from": "system",
-        "to": "genesis-validator",
-        "amount": 10,
-        "token": "BHX",
-        "fee": 0,
-        "nonce": 0,
-        "signature": null,
-        "data": "",
-        "timestamp": 1747295700,
-        "public_key": null
+        "ID": "f3dfdbf10f528b23c25db96790d5be712b22a1419a2fa6e496d544ca1eeae79d",
+        "Type": 1,
+        "From": "system",
+        "To": "genesis-validator",
+        "Amount": 10,
+        "TokenID": "BHX",
+        "Data": null,
+        "Timestamp": 1749192320,
+        "Nonce": 0,
+        "Signature": null,
+        "Fee": 0,
+        "GasLimit": 0,
+        "GasPrice": 0,
+        "PublicKey": null
+      },
+      {
+        "ID": "d72c4cc5de2b82cdc2afd6b7d37c1041aad027e5b3e60e69e1332a3be02434dd",
+        "Type": 1,
+        "From": "0235e2a98aa93ade4f0e0615c1fd234eeb76217de89ab60a4c57fe2dd6ce165dde",
+        "To": "03a83049366432a7eab220f44f7206e078bc0943af4afa318fd5f1e080562e4bce",
+        "Amount": 30,
+        "TokenID": "BHX",
+        "Data": null,
+        "Timestamp": 1749192317,
+        "Nonce": 1749192317344325400,
+        "Signature": null,
+        "Fee": 0,
+        "GasLimit": 0,
+        "GasPrice": 0,
+        "PublicKey": null
       }
     ],
-    "hash": "ab38146e9cc39174a2fa0a6d2fa3abe9bfe72ec7db60702410375efd3d714699"
+    "hash": "3050abcfda9fc20c3ad80c104631267dbd4245ec6ed9be91c6e3618a5072bc11"
   },
   "pending_blocks": 0,
   "total_supply": 1000000000,
+<<<<<<< HEAD
   "timestamp": "2025-06-06T11:17:22.933735+05:30",
+=======
+  "timestamp": "2025-06-06T12:19:46.670279+05:30",
+>>>>>>> origin/main
   "fork_info": {
     "has_fork": false,
     "reason": "No forks detected"
   },
   "block_hashes": [
-    "ab38146e9cc39174a2fa0a6d2fa3abe9bfe72ec7db60702410375efd3d714699"
+    "681c2b97ceb8e47b357c91f98f95cd3ef8725ee04523f5946f296d7310023fb1",
+    "3050abcfda9fc20c3ad80c104631267dbd4245ec6ed9be91c6e3618a5072bc11"
   ]
 }
