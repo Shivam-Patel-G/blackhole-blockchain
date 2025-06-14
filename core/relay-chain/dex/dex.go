@@ -71,7 +71,7 @@ func (dex *DEX) AddLiquidity(tokenA, tokenB string, amountA, amountB uint64, pro
 	pool, exists := dex.Pools[pairKey]
 	if !exists {
 		return 0, fmt.Errorf("pair %s does not exist", pairKey)
-	}
+	}  
 
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
