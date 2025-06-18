@@ -30,11 +30,32 @@ func GetLocalIP() string {
 	if err != nil {
 		return "127.0.0.1"
 	}
+
+	var validIPs []string
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-			return ipnet.IP.String()
+			ip := ipnet.IP.String()
+			// Skip link-local addresses (169.254.x.x) and other invalid ranges
+			if !strings.HasPrefix(ip, "169.254.") && !strings.HasPrefix(ip, "0.") {
+				validIPs = append(validIPs, ip)
+			}
 		}
 	}
+
+	// Prefer private network addresses for local development
+	for _, ip := range validIPs {
+		if strings.HasPrefix(ip, "192.168.") || strings.HasPrefix(ip, "10.") ||
+			(strings.HasPrefix(ip, "172.") && ip >= "172.16." && ip <= "172.31.") {
+			return ip
+		}
+	}
+
+	// If no private addresses, use the first valid IP
+	if len(validIPs) > 0 {
+		return validIPs[0]
+	}
+
+	// Fallback to localhost for local development
 	return "127.0.0.1"
 }
 

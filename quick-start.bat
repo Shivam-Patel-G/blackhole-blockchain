@@ -21,6 +21,9 @@ echo [INFO] Go is available
 REM Navigate to blockchain directory
 cd core\relay-chain\cmd\relay
 
+REM Clean any existing builds
+if exist blockchain-node.exe del blockchain-node.exe
+
 REM Build the blockchain node
 echo [INFO] Building blockchain node...
 go mod tidy
@@ -28,17 +31,26 @@ go build -o blockchain-node.exe .
 
 if errorlevel 1 (
     echo [ERROR] Failed to build blockchain node
+    echo [INFO] Check for compilation errors above
     pause
     exit /b 1
 )
 
-echo [INFO] Starting blockchain node on port 3000...
+echo [INFO] Build successful
 
-REM Start the blockchain node
+echo [INFO] Starting blockchain node...
+echo [INFO] P2P Port: 3000, HTTP API Port: 8080
+
+REM Start the blockchain node with proper port configuration
 start "BlackHole Blockchain Node" blockchain-node.exe 3000
 
-REM Wait a moment for startup
-timeout /t 5 /nobreak >nul
+REM Wait for startup and check if HTTP server is responding
+echo [INFO] Waiting for services to start...
+timeout /t 10 /nobreak >nul
+
+REM Check if HTTP server is responding
+echo [INFO] Checking HTTP server status...
+powershell -Command "try { $response = Invoke-WebRequest -Uri 'http://localhost:8080' -TimeoutSec 10 -UseBasicParsing; Write-Host '✅ HTTP server is responding successfully' } catch { Write-Host '⏳ HTTP server starting up, will be ready shortly' }"
 
 echo.
 echo ✅ BlackHole Blockchain is starting!

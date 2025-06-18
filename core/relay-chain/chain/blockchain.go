@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -99,6 +100,23 @@ func NewBlockchain(p2pPort int) (*Blockchain, error) {
 	nativeToken := token.NewTokenWithMaxSupply("Blockchain Hex", "BHX", 18, 1000000000) // 1B max supply
 	bc.TokenRegistry["BHX"] = nativeToken
 
+	// Also register as BHT for compatibility
+	bhtToken := token.NewTokenWithMaxSupply("BlackHole Token", "BHT", 18, 1000000000) // 1B max supply
+	bc.TokenRegistry["BHT"] = bhtToken
+
+	// Create other supported tokens
+	ethToken := token.NewTokenWithMaxSupply("Ethereum", "ETH", 18, 120000000) // 120M max supply
+	bc.TokenRegistry["ETH"] = ethToken
+
+	btcToken := token.NewTokenWithMaxSupply("Bitcoin", "BTC", 8, 21000000) // 21M max supply
+	bc.TokenRegistry["BTC"] = btcToken
+
+	usdtToken := token.NewTokenWithMaxSupply("Tether USD", "USDT", 6, 100000000000) // 100B max supply
+	bc.TokenRegistry["USDT"] = usdtToken
+
+	usdcToken := token.NewTokenWithMaxSupply("USD Coin", "USDC", 6, 100000000000) // 100B max supply
+	bc.TokenRegistry["USDC"] = usdcToken
+
 	// Initialize controlled token distribution
 	// System gets initial allocation for rewards and operations
 	err = nativeToken.Mint("system", 10000000) // 10M tokens (1% of max supply)
@@ -106,10 +124,42 @@ func NewBlockchain(p2pPort int) (*Blockchain, error) {
 		return nil, fmt.Errorf("failed to mint system tokens: %v", err)
 	}
 
-	// Test wallet gets small allocation
-	err = nativeToken.Mint("03e2459b73c0c6522530f6b26e834d992dfc55d170bee35d0bcdc047fe0d61c25b", 1000)
+	// Also mint BHT tokens for system
+	err = bhtToken.Mint("system", 10000000) // 10M BHT tokens
 	if err != nil {
-		return nil, fmt.Errorf("failed to mint test tokens: %v", err)
+		return nil, fmt.Errorf("failed to mint system BHT tokens: %v", err)
+	}
+
+	// Test wallet gets small allocation of all tokens
+	testWallet := "03e2459b73c0c6522530f6b26e834d992dfc55d170bee35d0bcdc047fe0d61c25b"
+	err = nativeToken.Mint(testWallet, 1000)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mint test BHX tokens: %v", err)
+	}
+
+	err = bhtToken.Mint(testWallet, 1000)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mint test BHT tokens: %v", err)
+	}
+
+	err = ethToken.Mint(testWallet, 10) // 10 ETH
+	if err != nil {
+		return nil, fmt.Errorf("failed to mint test ETH tokens: %v", err)
+	}
+
+	err = btcToken.Mint(testWallet, 1) // 1 BTC
+	if err != nil {
+		return nil, fmt.Errorf("failed to mint test BTC tokens: %v", err)
+	}
+
+	err = usdtToken.Mint(testWallet, 5000) // 5000 USDT
+	if err != nil {
+		return nil, fmt.Errorf("failed to mint test USDT tokens: %v", err)
+	}
+
+	err = usdcToken.Mint(testWallet, 5000) // 5000 USDC
+	if err != nil {
+		return nil, fmt.Errorf("failed to mint test USDC tokens: %v", err)
 	}
 
 	// Initialize genesis validator with consistent stake and tokens
@@ -129,12 +179,24 @@ func NewBlockchain(p2pPort int) (*Blockchain, error) {
 	go bc.MonitorValidatorPerformance()
 	fmt.Printf("⚡ Slashing manager initialized and monitoring started\n")
 
-	// Initialize OTC Manager
-	// bc.OTCManager = otc.NewOTCManager(bc)
-	// fmt.Printf("✅ OTC Manager initialized\n")
+	// Initialize DEX
+	bc.DEX = NewDEX(bc)
+	fmt.Printf("✅ DEX initialized\n")
 
-	// Optional: Load GlobalState from DB
-	bc.loadGlobalState()
+	// Initialize OTC Manager
+	bc.OTCManager = NewOTCManager(bc)
+	fmt.Printf("✅ OTC Manager initialized\n")
+
+	// Load persisted blockchain state from DB
+	err = bc.loadPersistedState()
+	if err != nil {
+		log.Printf("⚠️ Failed to load persisted state: %v", err)
+		// Continue with fresh state
+	}
+
+	// Start background persistence routine
+	go bc.startPersistenceRoutine()
+
 	return bc, nil
 }
 
@@ -874,6 +936,233 @@ func (bc *Blockchain) loadGlobalState() {
 
 	if err := iter.Error(); err != nil {
 		log.Println("Error loading global state:", err)
+	}
+}
+
+// loadPersistedState loads complete blockchain state from database
+func (bc *Blockchain) loadPersistedState() error {
+	// Load blocks
+	err := bc.loadPersistedBlocks()
+	if err != nil {
+		return fmt.Errorf("failed to load blocks: %v", err)
+	}
+
+	// Load token balances
+	err = bc.loadPersistedTokenBalances()
+	if err != nil {
+		return fmt.Errorf("failed to load token balances: %v", err)
+	}
+
+	// Load stake ledger
+	err = bc.loadPersistedStakeLedger()
+	if err != nil {
+		return fmt.Errorf("failed to load stake ledger: %v", err)
+	}
+
+	// Load global state (account states)
+	bc.loadGlobalState()
+
+	fmt.Printf("✅ Blockchain state loaded from database\n")
+	return nil
+}
+
+// loadPersistedBlocks loads blocks from database
+func (bc *Blockchain) loadPersistedBlocks() error {
+	iter := bc.DB.NewIterator(nil, nil)
+	defer iter.Release()
+
+	var blocks []*Block
+	for iter.Next() {
+		key := string(iter.Key())
+		if len(key) >= 6 && key[:6] == "block:" {
+			var block Block
+			err := json.Unmarshal(iter.Value(), &block)
+			if err == nil {
+				blocks = append(blocks, &block)
+			}
+		}
+	}
+
+	if len(blocks) > 1 { // More than just genesis
+		bc.Blocks = blocks
+		fmt.Printf("📦 Loaded %d blocks from database\n", len(blocks))
+	}
+
+	return iter.Error()
+}
+
+// loadPersistedTokenBalances loads token balances from database
+func (bc *Blockchain) loadPersistedTokenBalances() error {
+	iter := bc.DB.NewIterator(nil, nil)
+	defer iter.Release()
+
+	for iter.Next() {
+		key := string(iter.Key())
+		if len(key) >= 13 && key[:13] == "token_balance" {
+			// Key format: token_balance:TOKEN:ADDRESS
+			parts := strings.Split(key, ":")
+			if len(parts) == 3 {
+				tokenSymbol := parts[1]
+				address := parts[2]
+
+				var balance uint64
+				err := json.Unmarshal(iter.Value(), &balance)
+				if err == nil {
+					// Restore balance to token
+					if token, exists := bc.TokenRegistry[tokenSymbol]; exists {
+						token.SetBalance(address, balance)
+					}
+				}
+			}
+		}
+	}
+
+	return iter.Error()
+}
+
+// loadPersistedStakeLedger loads stake ledger from database
+func (bc *Blockchain) loadPersistedStakeLedger() error {
+	data, err := bc.DB.Get([]byte("stake_ledger"), nil)
+	if err != nil {
+		return nil // No persisted stake ledger, use fresh one
+	}
+
+	var stakes map[string]uint64
+	err = json.Unmarshal(data, &stakes)
+	if err != nil {
+		return err
+	}
+
+	// Restore stakes
+	for address, stake := range stakes {
+		bc.StakeLedger.SetStake(address, stake)
+	}
+
+	fmt.Printf("🏛️ Loaded stake ledger with %d validators\n", len(stakes))
+	return nil
+}
+
+// startPersistenceRoutine starts background persistence of blockchain state
+func (bc *Blockchain) startPersistenceRoutine() {
+	ticker := time.NewTicker(30 * time.Second) // Persist every 30 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			err := bc.persistBlockchainState()
+			if err != nil {
+				log.Printf("❌ Failed to persist blockchain state: %v", err)
+			}
+		}
+	}
+}
+
+// persistBlockchainState saves current blockchain state to database
+func (bc *Blockchain) persistBlockchainState() error {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
+	// Persist blocks
+	err := bc.persistBlocks()
+	if err != nil {
+		return fmt.Errorf("failed to persist blocks: %v", err)
+	}
+
+	// Persist token balances
+	err = bc.persistTokenBalances()
+	if err != nil {
+		return fmt.Errorf("failed to persist token balances: %v", err)
+	}
+
+	// Persist stake ledger
+	err = bc.persistStakeLedger()
+	if err != nil {
+		return fmt.Errorf("failed to persist stake ledger: %v", err)
+	}
+
+	return nil
+}
+
+// persistBlocks saves all blocks to database
+func (bc *Blockchain) persistBlocks() error {
+	for i, block := range bc.Blocks {
+		if i == 0 {
+			continue // Skip genesis block, already persisted
+		}
+
+		key := fmt.Sprintf("block:%d", block.Header.Index)
+		data, err := json.Marshal(block)
+		if err != nil {
+			return err
+		}
+
+		err = bc.DB.Put([]byte(key), data, nil)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// persistTokenBalances saves all token balances to database
+func (bc *Blockchain) persistTokenBalances() error {
+	for tokenSymbol, token := range bc.TokenRegistry {
+		balances := token.GetAllBalances()
+		for address, balance := range balances {
+			if balance > 0 { // Only persist non-zero balances
+				key := fmt.Sprintf("token_balance:%s:%s", tokenSymbol, address)
+				data, err := json.Marshal(balance)
+				if err != nil {
+					return err
+				}
+
+				err = bc.DB.Put([]byte(key), data, nil)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// persistStakeLedger saves stake ledger to database
+func (bc *Blockchain) persistStakeLedger() error {
+	stakes := bc.StakeLedger.GetAllStakes()
+	data, err := json.Marshal(stakes)
+	if err != nil {
+		return err
+	}
+
+	return bc.DB.Put([]byte("stake_ledger"), data, nil)
+}
+
+// NewDEX creates a new DEX for the blockchain
+func NewDEX(bc *Blockchain) interface{} {
+	// This is a placeholder that will be replaced with actual DEX
+	// For now, return a simple struct that can handle basic operations
+	return &struct {
+		Blockchain *Blockchain
+		Pools      map[string]interface{}
+	}{
+		Blockchain: bc,
+		Pools:      make(map[string]interface{}),
+	}
+}
+
+// NewOTCManager creates a new OTC manager for the blockchain
+func NewOTCManager(bc *Blockchain) interface{} {
+	// This is a placeholder that will be replaced with actual OTC manager
+	// For now, return a simple struct that can handle basic operations
+	return &struct {
+		Blockchain *Blockchain
+		Orders     map[string]interface{}
+		Trades     map[string]interface{}
+	}{
+		Blockchain: bc,
+		Orders:     make(map[string]interface{}),
+		Trades:     make(map[string]interface{}),
 	}
 }
 

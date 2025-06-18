@@ -498,13 +498,7 @@ type APIResponse struct {
 }
 
 func startWebServer(port int) {
-	// Static routes
-	http.HandleFunc("/", enableCORS(serveLogin))
-	http.HandleFunc("/login", enableCORS(serveLogin))
-	http.HandleFunc("/register", enableCORS(serveRegister))
-	http.HandleFunc("/dashboard", enableCORS(requireAuth(serveDashboard)))
-
-	// API routes
+	// API routes (register first to avoid conflicts with root route)
 	http.HandleFunc("/api/login", enableCORS(handleLogin))
 	http.HandleFunc("/api/register", enableCORS(handleRegister))
 	http.HandleFunc("/api/logout", enableCORS(handleLogout))
@@ -517,11 +511,31 @@ func startWebServer(port int) {
 	http.HandleFunc("/api/wallets/stake", enableCORS(requireAuth(handleStakeTokens)))
 	http.HandleFunc("/api/wallets/transactions", enableCORS(requireAuth(handleTransactions)))
 
+	// Enhanced API routes
+	http.HandleFunc("/api/balances", enableCORS(requireAuth(handleAllBalances)))
+	http.HandleFunc("/api/total-balance", enableCORS(requireAuth(handleTotalBalance)))
+	http.HandleFunc("/api/staking-overview", enableCORS(requireAuth(handleStakingOverview)))
+
 	// OTC Trading endpoints
 	http.HandleFunc("/api/otc/create", enableCORS(requireAuth(handleCreateOTCOrder)))
 	http.HandleFunc("/api/otc/orders", enableCORS(requireAuth(handleGetOTCOrders)))
 	http.HandleFunc("/api/otc/match", enableCORS(requireAuth(handleMatchOTCOrder)))
 	http.HandleFunc("/api/otc/cancel", enableCORS(requireAuth(handleCancelOTCOrder)))
+
+	// API base route handler (for /api requests that don't match specific routes)
+	http.HandleFunc("/api/", enableCORS(handleAPINotFound))
+
+	// Static file server for enhanced UI assets
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static/"))))
+
+	// Static routes (register after API routes)
+	http.HandleFunc("/login", enableCORS(serveLogin))
+	http.HandleFunc("/register", enableCORS(serveRegister))
+	http.HandleFunc("/dashboard", enableCORS(requireAuth(serveDashboard)))
+	http.HandleFunc("/enhanced", enableCORS(requireAuth(serveEnhancedDashboard)))
+
+	// Root route (register last)
+	http.HandleFunc("/", enableCORS(serveLogin))
 
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }
@@ -590,6 +604,14 @@ func sendJSONResponse(w http.ResponseWriter, response APIResponse, statusCode in
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(response)
+}
+
+// handleAPINotFound handles requests to /api/ that don't match specific routes
+func handleAPINotFound(w http.ResponseWriter, r *http.Request) {
+	sendJSONResponse(w, APIResponse{
+		Success: false,
+		Message: "API endpoint not found",
+	}, http.StatusNotFound)
 }
 
 // serveLogin serves the login page
@@ -847,6 +869,29 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendJSONResponse(w, APIResponse{Success: false, Message: "Invalid request body"}, http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if req.Username == "" {
+		sendJSONResponse(w, APIResponse{Success: false, Message: "Username is required"}, http.StatusBadRequest)
+		return
+	}
+
+	if req.Password == "" {
+		sendJSONResponse(w, APIResponse{Success: false, Message: "Password is required"}, http.StatusBadRequest)
+		return
+	}
+
+	// Validate username length and format
+	if len(req.Username) < 3 {
+		sendJSONResponse(w, APIResponse{Success: false, Message: "Username must be at least 3 characters long"}, http.StatusBadRequest)
+		return
+	}
+
+	// Validate password strength
+	if len(req.Password) < 6 {
+		sendJSONResponse(w, APIResponse{Success: false, Message: "Password must be at least 6 characters long"}, http.StatusBadRequest)
 		return
 	}
 
@@ -3605,6 +3650,154 @@ func serveDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(html))
 }
 
+// serveEnhancedDashboard serves the enhanced wallet dashboard with sidebar navigation
+func serveEnhancedDashboard(w http.ResponseWriter, r *http.Request) {
+	// Read the enhanced dashboard HTML file
+	htmlContent, err := os.ReadFile("templates/enhanced-dashboard.html")
+	if err != nil {
+		// Fallback to inline HTML if file doesn't exist
+		htmlContent = []byte(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlackHole Wallet - Enhanced Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; background: rgba(255,255,255,0.95); border-radius: 15px; padding: 30px; margin-top: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #667eea; font-size: 32px; margin-bottom: 10px; }
+        .loading { text-align: center; padding: 50px; color: #666; }
+        .btn { padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-block; margin: 10px; }
+        .btn:hover { background: #5a6fd8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-black-hole"></i> BlackHole Wallet - Enhanced Dashboard</h1>
+            <p>Modern sidebar-based wallet interface</p>
+        </div>
+        <div class="loading">
+            <p><i class="fas fa-spinner fa-spin"></i> Enhanced dashboard is loading...</p>
+            <p>Please ensure the enhanced-dashboard.html template exists in the templates/ directory.</p>
+            <p><a href="/dashboard" class="btn">← Back to Standard Dashboard</a></p>
+        </div>
+    </div>
+    <script>
+        // Redirect to enhanced dashboard after 3 seconds if template loads
+        setTimeout(() => {
+            window.location.reload();
+        }, 3000);
+    </script>
+</body>
+</html>`)
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write(htmlContent)
+}
+
+// Enhanced API Handlers
+
+// handleAllBalances returns all balances for the user's wallets
+func handleAllBalances(w http.ResponseWriter, r *http.Request) {
+	user, err := getUserFromSession(r)
+	if err != nil {
+		sendJSONResponse(w, APIResponse{
+			Success: false,
+			Message: "Authentication required",
+		}, http.StatusUnauthorized)
+		return
+	}
+
+	// Get all user wallets
+	userWallets, err := wallet.GetUserWallets(context.Background(), user, "")
+	if err != nil {
+		sendJSONResponse(w, APIResponse{
+			Success: false,
+			Message: "Failed to get wallets",
+		}, http.StatusInternalServerError)
+		return
+	}
+
+	balances := make(map[string]map[string]float64)
+	for _, w := range userWallets {
+		balances[w.Address] = map[string]float64{
+			"BHX":  1000.0, // Mock balance
+			"ETH":  0.5,
+			"USDT": 250.0,
+		}
+	}
+
+	sendJSONResponse(w, APIResponse{
+		Success: true,
+		Message: "Balances retrieved successfully",
+		Data:    balances,
+	}, http.StatusOK)
+}
+
+// handleTotalBalance returns the total balance across all wallets
+func handleTotalBalance(w http.ResponseWriter, r *http.Request) {
+	_, err := getUserFromSession(r)
+	if err != nil {
+		sendJSONResponse(w, APIResponse{
+			Success: false,
+			Message: "Authentication required",
+		}, http.StatusUnauthorized)
+		return
+	}
+
+	// Mock total balance calculation
+	totalBalance := 2500.75 // This would be calculated from all wallets
+
+	sendJSONResponse(w, APIResponse{
+		Success: true,
+		Message: "Total balance retrieved successfully",
+		Data: map[string]interface{}{
+			"total":    totalBalance,
+			"currency": "BHX",
+		},
+	}, http.StatusOK)
+}
+
+// handleStakingOverview returns staking overview data
+func handleStakingOverview(w http.ResponseWriter, r *http.Request) {
+	_, err := getUserFromSession(r)
+	if err != nil {
+		sendJSONResponse(w, APIResponse{
+			Success: false,
+			Message: "Authentication required",
+		}, http.StatusUnauthorized)
+		return
+	}
+
+	// Mock staking data
+	stakingData := map[string]interface{}{
+		"staked":  1500.0,
+		"rewards": 75.25,
+		"validators": []map[string]interface{}{
+			{
+				"name":   "genesis-validator",
+				"stake":  1000.0,
+				"status": "active",
+			},
+			{
+				"name":   "validator-2",
+				"stake":  500.0,
+				"status": "active",
+			},
+		},
+	}
+
+	sendJSONResponse(w, APIResponse{
+		Success: true,
+		Message: "Staking overview retrieved successfully",
+		Data:    stakingData,
+	}, http.StatusOK)
+}
+
 // getUserFromSession gets user from session
 func getUserFromSession(r *http.Request) (*wallet.User, error) {
 	sessionID := getSessionID(r)
@@ -3738,11 +3931,35 @@ func handleCheckBalance(w http.ResponseWriter, r *http.Request) {
 
 	logInfo("CHECK_BALANCE_REQUEST", fmt.Sprintf("Checking balance for wallet '%s', token '%s', user '%s'", req.WalletName, req.TokenSymbol, user.Username))
 
+	// Validate required fields
+	if req.WalletName == "" {
+		sendJSONResponse(w, APIResponse{Success: false, Message: "Wallet name is required"}, http.StatusBadRequest)
+		return
+	}
+
+	if req.Password == "" {
+		sendJSONResponse(w, APIResponse{Success: false, Message: "Password is required"}, http.StatusBadRequest)
+		return
+	}
+
+	if req.TokenSymbol == "" {
+		sendJSONResponse(w, APIResponse{Success: false, Message: "Token symbol is required"}, http.StatusBadRequest)
+		return
+	}
+
 	ctx := context.Background()
 	balance, err := wallet.CheckTokenBalance(ctx, user, req.WalletName, req.Password, req.TokenSymbol)
 	if err != nil {
 		logError("CHECK_BALANCE_QUERY", fmt.Errorf("failed to check balance for wallet '%s', token '%s', user '%s': %v", req.WalletName, req.TokenSymbol, user.Username, err))
-		sendJSONResponse(w, APIResponse{Success: false, Message: err.Error()}, http.StatusInternalServerError)
+
+		// Provide more specific error messages
+		if strings.Contains(err.Error(), "cipher: message authentication failed") {
+			sendJSONResponse(w, APIResponse{Success: false, Message: "Invalid wallet password"}, http.StatusBadRequest)
+		} else if strings.Contains(err.Error(), "wallet not found") {
+			sendJSONResponse(w, APIResponse{Success: false, Message: "Wallet not found"}, http.StatusNotFound)
+		} else {
+			sendJSONResponse(w, APIResponse{Success: false, Message: "Failed to check balance: " + err.Error()}, http.StatusInternalServerError)
+		}
 		return
 	}
 

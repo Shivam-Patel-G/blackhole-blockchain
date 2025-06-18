@@ -1,0 +1,45 @@
+# Manual Docker Build - Simplified Dockerfile for BlackHole Blockchain
+FROM golang:1.23-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git gcc musl-dev
+
+# Set working directory
+WORKDIR /app
+
+# Copy source code
+COPY . .
+
+# Set environment for Go build
+ENV CGO_ENABLED=1
+ENV GOOS=linux
+ENV GOARCH=amd64
+
+# Build the application directly without module complications
+WORKDIR /app/core/relay-chain/cmd/relay
+RUN go build -o blockchain-node .
+
+# Production stage
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /app/core/relay-chain/cmd/relay/blockchain-node .
+
+# Make binary executable
+RUN chmod +x blockchain-node
+
+# Expose ports
+EXPOSE 3000 8080
+
+# Environment variables for Docker mode
+ENV DOCKER_MODE=true
+ENV BLOCKCHAIN_DOCKER=true
+
+# Run the blockchain
+CMD ["./blockchain-node", "3000"]

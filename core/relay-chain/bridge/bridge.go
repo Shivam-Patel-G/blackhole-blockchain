@@ -1,8 +1,10 @@
 package bridge
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -19,7 +21,36 @@ const (
 	ChainTypePolkadot  ChainType = "polkadot"
 )
 
-// BridgeTransaction represents a cross-chain transaction
+// Enhanced retry configuration
+type RetryConfig struct {
+	MaxAttempts   int           `json:"max_attempts"`
+	InitialDelay  time.Duration `json:"initial_delay"`
+	MaxDelay      time.Duration `json:"max_delay"`
+	BackoffFactor float64       `json:"backoff_factor"`
+	JitterFactor  float64       `json:"jitter_factor"`
+	Timeout       time.Duration `json:"timeout"`
+}
+
+// Event streaming structures
+type BridgeEvent struct {
+	ID         string                 `json:"id"`
+	Type       string                 `json:"type"`
+	BridgeTxID string                 `json:"bridge_tx_id"`
+	Chain      ChainType              `json:"chain"`
+	Data       map[string]interface{} `json:"data"`
+	Timestamp  int64                  `json:"timestamp"`
+	Status     string                 `json:"status"`
+	Error      string                 `json:"error,omitempty"`
+}
+
+type EventStream struct {
+	subscribers map[string]chan *BridgeEvent
+	mu          sync.RWMutex
+	events      []*BridgeEvent
+	maxEvents   int
+}
+
+// Enhanced bridge transaction with retry tracking
 type BridgeTransaction struct {
 	ID              string    `json:"id"`
 	SourceChain     ChainType `json:"source_chain"`
@@ -28,14 +59,26 @@ type BridgeTransaction struct {
 	DestAddress     string    `json:"dest_address"`
 	TokenSymbol     string    `json:"token_symbol"`
 	Amount          uint64    `json:"amount"`
-	Status          string    `json:"status"` // "pending", "confirmed", "completed", "failed"
+	Status          string    `json:"status"` // "pending", "confirmed", "completed", "failed", "retrying"
 	CreatedAt       int64     `json:"created_at"`
 	ConfirmedAt     int64     `json:"confirmed_at,omitempty"`
 	CompletedAt     int64     `json:"completed_at,omitempty"`
 	SourceTxHash    string    `json:"source_tx_hash,omitempty"`
 	DestTxHash      string    `json:"dest_tx_hash,omitempty"`
 	RelaySignatures []string  `json:"relay_signatures"`
-	mu              sync.RWMutex
+
+	// Enhanced retry tracking
+	RetryAttempts int    `json:"retry_attempts"`
+	LastRetryAt   int64  `json:"last_retry_at,omitempty"`
+	NextRetryAt   int64  `json:"next_retry_at,omitempty"`
+	RetryReason   string `json:"retry_reason,omitempty"`
+	FailureCount  int    `json:"failure_count"`
+	LastError     string `json:"last_error,omitempty"`
+
+	// Event tracking
+	Events []*BridgeEvent `json:"events,omitempty"`
+
+	mu sync.RWMutex
 }
 
 // RelayNode represents a bridge relay node
@@ -53,17 +96,47 @@ type Bridge struct {
 	RelayNodes      map[string]*RelayNode           `json:"relay_nodes"`
 	TokenMappings   map[ChainType]map[string]string `json:"token_mappings"` // chain -> original_token -> wrapped_token
 	Blockchain      *chain.Blockchain               `json:"-"`
-	mu              sync.RWMutex
+
+	// Enhanced components
+	RetryConfig *RetryConfig       `json:"retry_config"`
+	EventStream *EventStream       `json:"-"`
+	Context     context.Context    `json:"-"`
+	CancelFunc  context.CancelFunc `json:"-"`
+
+	mu sync.RWMutex
 }
 
 // NewBridge creates a new bridge instance
 func NewBridge(blockchain *chain.Blockchain) *Bridge {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Enhanced retry configuration
+	retryConfig := &RetryConfig{
+		MaxAttempts:   5,
+		InitialDelay:  1 * time.Second,
+		MaxDelay:      30 * time.Second,
+		BackoffFactor: 2.0,
+		JitterFactor:  0.1,
+		Timeout:       60 * time.Second,
+	}
+
+	// Initialize event streaming
+	eventStream := &EventStream{
+		subscribers: make(map[string]chan *BridgeEvent),
+		events:      make([]*BridgeEvent, 0),
+		maxEvents:   1000,
+	}
+
 	bridge := &Bridge{
 		SupportedChains: make(map[ChainType]bool),
 		Transactions:    make(map[string]*BridgeTransaction),
 		RelayNodes:      make(map[string]*RelayNode),
 		TokenMappings:   make(map[ChainType]map[string]string),
 		Blockchain:      blockchain,
+		RetryConfig:     retryConfig,
+		EventStream:     eventStream,
+		Context:         ctx,
+		CancelFunc:      cancel,
 	}
 
 	// Initialize supported chains
@@ -86,6 +159,9 @@ func NewBridge(blockchain *chain.Blockchain) *Bridge {
 	bridge.AddRelayNode("relay2", "relay2_address", "relay2_pubkey")
 	bridge.AddRelayNode("relay3", "relay3_address", "relay3_pubkey")
 
+	// Start background retry processor
+	go bridge.startRetryProcessor()
+
 	return bridge
 }
 
@@ -102,92 +178,132 @@ func (b *Bridge) AddRelayNode(id, address, publicKey string) {
 	}
 }
 
-// InitiateBridgeTransfer initiates a cross-chain transfer
-func (b *Bridge) InitiateBridgeTransfer(sourceChain, destChain ChainType, sourceAddr, destAddr, tokenSymbol string, amount uint64) (*BridgeTransaction, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+// Enhanced retry processor
+func (b *Bridge) startRetryProcessor() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
 
-	// Validate chains
-	if !b.SupportedChains[sourceChain] || !b.SupportedChains[destChain] {
-		return nil, fmt.Errorf("unsupported chain")
-	}
-
-	// Check token mapping
-	_, exists := b.TokenMappings[destChain][tokenSymbol]
-	if !exists {
-		return nil, fmt.Errorf("token %s not supported on destination chain %s", tokenSymbol, destChain)
-	}
-
-	// Generate bridge transaction ID
-	bridgeTxID := fmt.Sprintf("bridge_%d_%s", time.Now().UnixNano(), sourceAddr[:8])
-
-	// Create bridge transaction
-	bridgeTx := &BridgeTransaction{
-		ID:              bridgeTxID,
-		SourceChain:     sourceChain,
-		DestChain:       destChain,
-		SourceAddress:   sourceAddr,
-		DestAddress:     destAddr,
-		TokenSymbol:     tokenSymbol,
-		Amount:          amount,
-		Status:          "pending",
-		CreatedAt:       time.Now().Unix(),
-		RelaySignatures: make([]string, 0),
-	}
-
-	// If source chain is Blackhole, lock tokens
-	if sourceChain == ChainTypeBlackhole {
-		token, exists := b.Blockchain.TokenRegistry[tokenSymbol]
-		if !exists {
-			return nil, fmt.Errorf("token %s not found", tokenSymbol)
+	for {
+		select {
+		case <-b.Context.Done():
+			return
+		case <-ticker.C:
+			b.processRetryQueue()
 		}
-
-		// Check balance
-		balance, err := token.BalanceOf(sourceAddr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check balance: %v", err)
-		}
-
-		if balance < amount {
-			return nil, fmt.Errorf("insufficient balance: has %d, needs %d", balance, amount)
-		}
-
-		// Lock tokens in bridge contract
-		err = token.Transfer(sourceAddr, "bridge_contract", amount)
-		if err != nil {
-			return nil, fmt.Errorf("failed to lock tokens: %v", err)
-		}
-
-		bridgeTx.SourceTxHash = fmt.Sprintf("blackhole_tx_%d", time.Now().UnixNano())
 	}
-
-	b.Transactions[bridgeTxID] = bridgeTx
-	fmt.Printf("✅ Bridge transfer initiated: %s (%d %s from %s to %s)\n",
-		bridgeTxID, amount, tokenSymbol, sourceChain, destChain)
-
-	// Simulate relay processing
-	go b.processRelayConfirmation(bridgeTxID)
-
-	return bridgeTx, nil
 }
 
-// processRelayConfirmation simulates relay node confirmation
-func (b *Bridge) processRelayConfirmation(bridgeTxID string) {
-	// Simulate relay processing time
-	time.Sleep(5 * time.Second)
+func (b *Bridge) processRetryQueue() {
+	b.mu.RLock()
+	var retryTxs []*BridgeTransaction
+	for _, tx := range b.Transactions {
+		if tx.Status == "retrying" && time.Now().Unix() >= tx.NextRetryAt {
+			retryTxs = append(retryTxs, tx)
+		}
+	}
+	b.mu.RUnlock()
+
+	for _, tx := range retryTxs {
+		go b.retryBridgeTransaction(tx)
+	}
+}
+
+func (b *Bridge) retryBridgeTransaction(tx *BridgeTransaction) {
+	tx.mu.Lock()
+	tx.RetryAttempts++
+	tx.LastRetryAt = time.Now().Unix()
+	tx.Status = "pending"
+	tx.mu.Unlock()
+
+	// Emit retry event
+	b.emitEvent(&BridgeEvent{
+		ID:         fmt.Sprintf("retry_%s_%d", tx.ID, tx.RetryAttempts),
+		Type:       "retry_attempt",
+		BridgeTxID: tx.ID,
+		Chain:      tx.SourceChain,
+		Data: map[string]interface{}{
+			"attempt":    tx.RetryAttempts,
+			"reason":     tx.RetryReason,
+			"last_error": tx.LastError,
+		},
+		Timestamp: time.Now().Unix(),
+		Status:    "retrying",
+	})
+
+	// Attempt the operation with timeout
+	ctx, cancel := context.WithTimeout(b.Context, b.RetryConfig.Timeout)
+	defer cancel()
+
+	// Simulate relay processing with retry logic
+	go b.processRelayConfirmationWithRetry(ctx, tx.ID)
+}
+
+func (b *Bridge) processRelayConfirmationWithRetry(ctx context.Context, bridgeTxID string) {
+	// Simulate relay processing time with potential failure
+	processingTime := time.Duration(3+rand.Intn(7)) * time.Second
+
+	select {
+	case <-ctx.Done():
+		b.handleRetryFailure(bridgeTxID, "timeout")
+		return
+	case <-time.After(processingTime):
+		// Continue processing
+	}
 
 	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	bridgeTx, exists := b.Transactions[bridgeTxID]
 	if !exists {
+		b.mu.Unlock()
 		return
 	}
+	b.mu.Unlock()
 
 	bridgeTx.mu.Lock()
 	defer bridgeTx.mu.Unlock()
 
-	// Simulate relay signatures (need 2 out of 3)
+	// Simulate potential failure (10% chance)
+	if rand.Float64() < 0.1 {
+		bridgeTx.Status = "failed"
+		bridgeTx.LastError = "relay confirmation failed"
+		bridgeTx.FailureCount++
+
+		// Check if we should retry
+		if bridgeTx.RetryAttempts < b.RetryConfig.MaxAttempts {
+			bridgeTx.Status = "retrying"
+			bridgeTx.RetryReason = "relay confirmation failed"
+			bridgeTx.NextRetryAt = time.Now().Add(b.calculateRetryDelay(bridgeTx.RetryAttempts)).Unix()
+
+			b.emitEvent(&BridgeEvent{
+				ID:         fmt.Sprintf("retry_scheduled_%s", bridgeTxID),
+				Type:       "retry_scheduled",
+				BridgeTxID: bridgeTxID,
+				Chain:      bridgeTx.SourceChain,
+				Data: map[string]interface{}{
+					"next_retry_at": bridgeTx.NextRetryAt,
+					"attempt":       bridgeTx.RetryAttempts,
+				},
+				Timestamp: time.Now().Unix(),
+				Status:    "scheduled",
+			})
+		} else {
+			b.emitEvent(&BridgeEvent{
+				ID:         fmt.Sprintf("max_retries_exceeded_%s", bridgeTxID),
+				Type:       "max_retries_exceeded",
+				BridgeTxID: bridgeTxID,
+				Chain:      bridgeTx.SourceChain,
+				Data: map[string]interface{}{
+					"max_attempts":   b.RetryConfig.MaxAttempts,
+					"total_attempts": bridgeTx.RetryAttempts,
+				},
+				Timestamp: time.Now().Unix(),
+				Status:    "failed",
+				Error:     "max retry attempts exceeded",
+			})
+		}
+		return
+	}
+
+	// Success - simulate relay signatures
 	relayCount := 0
 	for relayID := range b.RelayNodes {
 		if relayCount >= 2 {
@@ -200,48 +316,313 @@ func (b *Bridge) processRelayConfirmation(bridgeTxID string) {
 	bridgeTx.Status = "confirmed"
 	bridgeTx.ConfirmedAt = time.Now().Unix()
 
+	// Emit confirmation event
+	b.emitEvent(&BridgeEvent{
+		ID:         fmt.Sprintf("confirmed_%s", bridgeTxID),
+		Type:       "relay_confirmed",
+		BridgeTxID: bridgeTxID,
+		Chain:      bridgeTx.SourceChain,
+		Data: map[string]interface{}{
+			"relay_signatures": bridgeTx.RelaySignatures,
+			"relay_count":      len(bridgeTx.RelaySignatures),
+		},
+		Timestamp: time.Now().Unix(),
+		Status:    "confirmed",
+	})
+
 	fmt.Printf("✅ Bridge transaction %s confirmed by %d relays\n", bridgeTxID, len(bridgeTx.RelaySignatures))
 
-	// Simulate destination chain processing
-	go b.processDestinationTransfer(bridgeTxID)
+	// Continue with destination transfer
+	go b.processDestinationTransferWithRetry(ctx, bridgeTxID)
 }
 
-// processDestinationTransfer simulates transfer on destination chain
-func (b *Bridge) processDestinationTransfer(bridgeTxID string) {
+func (b *Bridge) processDestinationTransferWithRetry(ctx context.Context, bridgeTxID string) {
 	// Simulate destination processing time
-	time.Sleep(3 * time.Second)
+	processingTime := time.Duration(2+rand.Intn(4)) * time.Second
+
+	select {
+	case <-ctx.Done():
+		b.handleRetryFailure(bridgeTxID, "destination timeout")
+		return
+	case <-time.After(processingTime):
+		// Continue processing
+	}
 
 	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	bridgeTx, exists := b.Transactions[bridgeTxID]
 	if !exists {
+		b.mu.Unlock()
 		return
 	}
+	b.mu.Unlock()
 
 	bridgeTx.mu.Lock()
 	defer bridgeTx.mu.Unlock()
 
-	// If destination is Blackhole, mint wrapped tokens
+	// Simulate potential failure (5% chance)
+	if rand.Float64() < 0.05 {
+		bridgeTx.Status = "failed"
+		bridgeTx.LastError = "destination transfer failed"
+		bridgeTx.FailureCount++
+
+		// Check if we should retry
+		if bridgeTx.RetryAttempts < b.RetryConfig.MaxAttempts {
+			bridgeTx.Status = "retrying"
+			bridgeTx.RetryReason = "destination transfer failed"
+			bridgeTx.NextRetryAt = time.Now().Add(b.calculateRetryDelay(bridgeTx.RetryAttempts)).Unix()
+
+			b.emitEvent(&BridgeEvent{
+				ID:         fmt.Sprintf("dest_retry_scheduled_%s", bridgeTxID),
+				Type:       "destination_retry_scheduled",
+				BridgeTxID: bridgeTxID,
+				Chain:      bridgeTx.DestChain,
+				Data: map[string]interface{}{
+					"next_retry_at": bridgeTx.NextRetryAt,
+					"attempt":       bridgeTx.RetryAttempts,
+				},
+				Timestamp: time.Now().Unix(),
+				Status:    "scheduled",
+			})
+		} else {
+			b.emitEvent(&BridgeEvent{
+				ID:         fmt.Sprintf("dest_max_retries_exceeded_%s", bridgeTxID),
+				Type:       "destination_max_retries_exceeded",
+				BridgeTxID: bridgeTxID,
+				Chain:      bridgeTx.DestChain,
+				Data: map[string]interface{}{
+					"max_attempts":   b.RetryConfig.MaxAttempts,
+					"total_attempts": bridgeTx.RetryAttempts,
+				},
+				Timestamp: time.Now().Unix(),
+				Status:    "failed",
+				Error:     "max retry attempts exceeded",
+			})
+		}
+		return
+	}
+
+	// Success - process destination transfer
 	if bridgeTx.DestChain == ChainTypeBlackhole {
 		destToken := b.TokenMappings[bridgeTx.DestChain][bridgeTx.TokenSymbol]
 		token, exists := b.Blockchain.TokenRegistry[destToken]
 		if exists {
-			// Mint wrapped tokens to destination address
 			err := token.Mint(bridgeTx.DestAddress, bridgeTx.Amount)
 			if err == nil {
 				bridgeTx.DestTxHash = fmt.Sprintf("blackhole_mint_%d", time.Now().UnixNano())
 			}
 		}
 	} else {
-		// Simulate external chain transaction
 		bridgeTx.DestTxHash = fmt.Sprintf("%s_tx_%d", bridgeTx.DestChain, time.Now().UnixNano())
 	}
 
 	bridgeTx.Status = "completed"
 	bridgeTx.CompletedAt = time.Now().Unix()
 
+	// Emit completion event
+	b.emitEvent(&BridgeEvent{
+		ID:         fmt.Sprintf("completed_%s", bridgeTxID),
+		Type:       "transfer_completed",
+		BridgeTxID: bridgeTxID,
+		Chain:      bridgeTx.DestChain,
+		Data: map[string]interface{}{
+			"dest_tx_hash": bridgeTx.DestTxHash,
+			"amount":       bridgeTx.Amount,
+			"token":        bridgeTx.TokenSymbol,
+		},
+		Timestamp: time.Now().Unix(),
+		Status:    "completed",
+	})
+
 	fmt.Printf("✅ Bridge transfer completed: %s (tx: %s)\n", bridgeTxID, bridgeTx.DestTxHash)
+}
+
+func (b *Bridge) handleRetryFailure(bridgeTxID string, reason string) {
+	b.mu.Lock()
+	bridgeTx, exists := b.Transactions[bridgeTxID]
+	b.mu.Unlock()
+
+	if !exists {
+		return
+	}
+
+	bridgeTx.mu.Lock()
+	bridgeTx.Status = "failed"
+	bridgeTx.LastError = reason
+	bridgeTx.FailureCount++
+	bridgeTx.mu.Unlock()
+
+	b.emitEvent(&BridgeEvent{
+		ID:         fmt.Sprintf("retry_failed_%s", bridgeTxID),
+		Type:       "retry_failed",
+		BridgeTxID: bridgeTxID,
+		Chain:      bridgeTx.SourceChain,
+		Data: map[string]interface{}{
+			"reason": reason,
+		},
+		Timestamp: time.Now().Unix(),
+		Status:    "failed",
+		Error:     reason,
+	})
+}
+
+func (b *Bridge) calculateRetryDelay(attempt int) time.Duration {
+	delay := b.RetryConfig.InitialDelay
+	for i := 0; i < attempt; i++ {
+		delay = time.Duration(float64(delay) * b.RetryConfig.BackoffFactor)
+		if delay > b.RetryConfig.MaxDelay {
+			delay = b.RetryConfig.MaxDelay
+			break
+		}
+	}
+
+	// Add jitter
+	jitter := time.Duration(float64(delay) * b.RetryConfig.JitterFactor * (rand.Float64() - 0.5))
+	delay += jitter
+
+	if delay < 0 {
+		delay = b.RetryConfig.InitialDelay
+	}
+
+	return delay
+}
+
+// Event streaming methods
+func (b *Bridge) emitEvent(event *BridgeEvent) {
+	// Add to event history
+	b.EventStream.mu.Lock()
+	b.EventStream.events = append(b.EventStream.events, event)
+
+	// Keep only recent events
+	if len(b.EventStream.events) > b.EventStream.maxEvents {
+		b.EventStream.events = b.EventStream.events[1:]
+	}
+	b.EventStream.mu.Unlock()
+
+	// Broadcast to subscribers
+	b.EventStream.mu.RLock()
+	for _, ch := range b.EventStream.subscribers {
+		select {
+		case ch <- event:
+		default:
+			// Channel is full, skip this subscriber
+		}
+	}
+	b.EventStream.mu.RUnlock()
+
+	// Add to transaction events
+	b.mu.RLock()
+	if tx, exists := b.Transactions[event.BridgeTxID]; exists {
+		tx.mu.Lock()
+		tx.Events = append(tx.Events, event)
+		tx.mu.Unlock()
+	}
+	b.mu.RUnlock()
+}
+
+func (b *Bridge) SubscribeToEvents(subscriberID string) chan *BridgeEvent {
+	ch := make(chan *BridgeEvent, 100)
+
+	b.EventStream.mu.Lock()
+	b.EventStream.subscribers[subscriberID] = ch
+	b.EventStream.mu.Unlock()
+
+	return ch
+}
+
+func (b *Bridge) UnsubscribeFromEvents(subscriberID string) {
+	b.EventStream.mu.Lock()
+	if ch, exists := b.EventStream.subscribers[subscriberID]; exists {
+		close(ch)
+		delete(b.EventStream.subscribers, subscriberID)
+	}
+	b.EventStream.mu.Unlock()
+}
+
+func (b *Bridge) GetRecentEvents(limit int) []*BridgeEvent {
+	b.EventStream.mu.RLock()
+	defer b.EventStream.mu.RUnlock()
+
+	if limit > len(b.EventStream.events) {
+		limit = len(b.EventStream.events)
+	}
+
+	events := make([]*BridgeEvent, limit)
+	copy(events, b.EventStream.events[len(b.EventStream.events)-limit:])
+
+	return events
+}
+
+// Enhanced bridge transfer with retry support
+func (b *Bridge) InitiateBridgeTransfer(sourceChain, destChain ChainType, sourceAddr, destAddr, tokenSymbol string, amount uint64) (*BridgeTransaction, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Validate chains
+	if !b.SupportedChains[sourceChain] {
+		return nil, fmt.Errorf("unsupported source chain: %s", sourceChain)
+	}
+	if !b.SupportedChains[destChain] {
+		return nil, fmt.Errorf("unsupported destination chain: %s", destChain)
+	}
+
+	// Validate addresses
+	if sourceAddr == "" || destAddr == "" {
+		return nil, fmt.Errorf("source and destination addresses are required")
+	}
+
+	// Validate amount
+	if amount == 0 {
+		return nil, fmt.Errorf("amount must be greater than 0")
+	}
+
+	// Check token mapping
+	if _, exists := b.TokenMappings[destChain][tokenSymbol]; !exists {
+		return nil, fmt.Errorf("token %s not supported on destination chain %s", tokenSymbol, destChain)
+	}
+
+	// Generate bridge transaction ID
+	bridgeTxID := fmt.Sprintf("bridge_%s_%d", sourceChain, time.Now().UnixNano())
+
+	// Create bridge transaction
+	bridgeTx := &BridgeTransaction{
+		ID:            bridgeTxID,
+		SourceChain:   sourceChain,
+		DestChain:     destChain,
+		SourceAddress: sourceAddr,
+		DestAddress:   destAddr,
+		TokenSymbol:   tokenSymbol,
+		Amount:        amount,
+		Status:        "pending",
+		CreatedAt:     time.Now().Unix(),
+		Events:        make([]*BridgeEvent, 0),
+	}
+
+	// Store transaction
+	b.Transactions[bridgeTxID] = bridgeTx
+
+	// Emit initiation event
+	b.emitEvent(&BridgeEvent{
+		ID:         fmt.Sprintf("initiated_%s", bridgeTxID),
+		Type:       "transfer_initiated",
+		BridgeTxID: bridgeTxID,
+		Chain:      sourceChain,
+		Data: map[string]interface{}{
+			"source_chain": sourceChain,
+			"dest_chain":   destChain,
+			"amount":       amount,
+			"token":        tokenSymbol,
+		},
+		Timestamp: time.Now().Unix(),
+		Status:    "initiated",
+	})
+
+	// Start processing with retry logic
+	ctx, cancel := context.WithTimeout(b.Context, b.RetryConfig.Timeout)
+	defer cancel()
+
+	go b.processRelayConfirmationWithRetry(ctx, bridgeTxID)
+
+	return bridgeTx, nil
 }
 
 // GetBridgeTransaction returns a bridge transaction

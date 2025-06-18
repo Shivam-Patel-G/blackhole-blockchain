@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	
+
 	"github.com/Shivam-Patel-G/blackhole-blockchain/core/relay-chain/token"
 )
 
@@ -58,6 +58,17 @@ func (sl *StakeLedger) GetAllStakes() map[string]uint64 {
 		stakes[addr] = stake
 	}
 	return stakes
+}
+
+// GetTotalStaked returns the total amount of tokens staked across all validators
+func (sl *StakeLedger) GetTotalStaked() uint64 {
+	sl.mu.RLock()
+	defer sl.mu.RUnlock()
+	total := uint64(0)
+	for _, stake := range sl.Stakes {
+		total += stake
+	}
+	return total
 }
 
 func (sl *StakeLedger) InitializeDefaultStakes() {
@@ -121,13 +132,13 @@ func (sl *StakeLedger) StakeTokens(address string, amount uint64, tokenSystem *t
 	if balance < amount {
 		return errors.New("insufficient token balance for staking")
 	}
-	
+
 	// Lock tokens (could implement as internal transfer to staking contract address)
 	err = tokenSystem.Transfer(address, "staking_contract", amount)
 	if err != nil {
 		return err
 	}
-	
+
 	// Add stake
 	sl.AddStake(address, amount)
 	return nil

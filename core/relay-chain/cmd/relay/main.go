@@ -159,9 +159,22 @@ func main() {
 	// Create bridge instance
 	bridgeInstance := bridge.NewBridge(bc)
 
-	// Start API server for UI
-	apiServer := api.NewAPIServer(bc, bridgeInstance, 8080)
-	go apiServer.Start()
+	// Calculate API port based on P2P port
+	apiPort := 8080 + (port - 3000)
+	fmt.Printf("🌐 Starting HTTP API server on port %d...\n", apiPort)
+	apiServer := api.NewAPIServer(bc, bridgeInstance, apiPort)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("❌ API Server panic: %v\n", r)
+			}
+		}()
+		apiServer.Start()
+	}()
+
+	// Give API server time to start
+	time.Sleep(2 * time.Second)
+	fmt.Println("✅ HTTP API server startup initiated")
 
 	// Start CLI only if not in Docker mode
 	if !dockerMode {
